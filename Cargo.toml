@@ -1,12 +1,18 @@
 [package]
 name = "rustbasic-cli"
-version = "0.1.0"
+version = "0.0.2"
 edition = "2024"
 description = "CLI tool for the RustBasic Framework."
 license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/herisvan321/rustbasic"
+repository = "https://github.com/herisvan321/rustbasic"
+documentation = "https://github.com/herisvan321/rustbasic"
+keywords = ["rustbasic", "framework", "cli", "scaffolding", "orm"]
+categories = ["development-tools", "command-line-utilities", "web-programming"]
 
 [dependencies]
-rustbasic-core = { path = "../rustbasic-core" }
+rustbasic-core = "0.1.4"
 tokio = { version = "1.52.1", features = ["full"] }
 colored = "3.0"
 dotenvy = "0.15.7"

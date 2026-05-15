@@ -40,6 +40,14 @@ fn main() {
             scaffolding::make_rust_migration(&args[2]);
             return;
         }
+        "make:migration:add" => {
+            if args.len() < 4 {
+                println!("{}", "❌ Error: Gunakan: rustbasic make:migration:add <kolom> <tabel>".red().bold());
+                return;
+            }
+            scaffolding::make_rust_migration_add(&args[2], &args[3]);
+            return;
+        }
         "make:controller" => {
             if args.len() < 3 {
                 println!("{}", "❌ Error: Nama controller tidak ditentukan.".red().bold());
@@ -198,7 +206,12 @@ fn print_help() {
     println!("{}", "=================".magenta());
     println!("{}", "Penggunaan:".bold());
     println!("  {} {} <Nama>         {}", "rustbasic".blue(), "new".green(), "Membuat project RustBasic baru".dimmed());
+    println!("  {} {} <Nama>   {}", "rustbasic".blue(), "make:controller".green(), "Membuat controller baru".dimmed());
     println!("  {} {} <Nama> [-m]   {}", "rustbasic".blue(), "make:model".green(), "Membuat model & migration".dimmed());
+    println!("  {} {} <Nama>    {}", "rustbasic".blue(), "make:migration".green(), "Membuat file migrasi (Create)".dimmed());
+    println!("  {} {} <Kolom> <Tabel> {}", "rustbasic".blue(), "make:migration:add".green(), "Membuat file migrasi (Add Column)".dimmed());
+    println!("  {} {} <Nama>     {}", "rustbasic".blue(), "make:middleware".green(), "Membuat middleware baru".dimmed());
+    println!("  {} {} <Nama>       {}", "rustbasic".blue(), "make:seeder".green(), "Membuat seeder baru".dimmed());
     println!("  {} {}                  {}", "rustbasic".blue(), "migrate".green(), "Menjalankan migrasi database".dimmed());
     println!("  {} {}                   {}", "rustbasic".blue(), "serve".green(), "Menjalankan server (Auto-Reload)".dimmed());
     println!("  {} {}                 {}", "rustbasic".blue(), "version".green(), "Menampilkan versi CLI".dimmed());

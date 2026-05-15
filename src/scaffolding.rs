@@ -197,7 +197,7 @@ pub fn make_rust_migration(name: &str) {
     }
 
     let pascal_name = to_pascal_case(name);
-    let table_iden = format!("{}s", pascal_name);
+    let table_iden = if pascal_name.ends_with('s') { pascal_name } else { format!("{}s", pascal_name) };
 
     let template = format!(
 r#"use sea_orm_migration::prelude::*;
@@ -260,6 +260,68 @@ impl MigrationTrait for Migration {{
 
     fs::write(&file_path, template).expect("Gagal membuat file migration");
     println!("{} {}", "✅ Migration Rust dibuat:".green(), file_path.cyan());
+
+    update_migration_mod_rs(&mod_name);
+}
+
+pub fn make_rust_migration_add(column: &str, table: &str) {
+    let col_snake = to_snake_case(column);
+    let table_snake = to_snake_case(table);
+    let name = format!("add_{}_to_{}", col_snake, table_snake);
+    let timestamp = Local::now().format("%Y%m%d_%H%M%S").to_string();
+    let mod_name = format!("m{}_{}", timestamp, name);
+    let file_path = format!("database/migrations/{}.rs", mod_name);
+
+    let col_pascal = to_pascal_case(column);
+    let table_pascal = to_pascal_case(table);
+
+    let template = format!(
+r#"use sea_orm_migration::prelude::*;
+use async_trait::async_trait;
+
+#[derive(Iden)]
+enum {table_pascal} {{
+    Table,
+    {col_pascal},
+}}
+
+#[derive(Iden)]
+pub struct Migration;
+
+impl MigrationName for Migration {{
+    fn name(&self) -> &str {{
+        "{mod_name}"
+    }}
+}}
+
+#[async_trait]
+impl MigrationTrait for Migration {{
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {{
+        manager
+            .alter_table(
+                Table::alter()
+                    .table({table_pascal}::Table)
+                    .add_column(ColumnDef::new({table_pascal}::{col_pascal}).string())
+                    .to_owned(),
+            )
+            .await
+    }}
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {{
+        manager
+            .alter_table(
+                Table::alter()
+                    .table({table_pascal}::Table)
+                    .drop_column({table_pascal}::{col_pascal})
+                    .to_owned(),
+            )
+            .await
+    }}
+}}
+"#, table_pascal = table_pascal, col_pascal = col_pascal, mod_name = mod_name);
+
+    fs::write(&file_path, template).expect("Gagal membuat file migration");
+    println!("{} {}", "✅ Migration Add dibuat:".green(), file_path.cyan());
 
     update_migration_mod_rs(&mod_name);
 }

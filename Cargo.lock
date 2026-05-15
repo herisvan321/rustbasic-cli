@@ -2612,7 +2612,7 @@ dependencies = [
 
 [[package]]
 name = "rustbasic-cli"
-version = "0.1.0"
+version = "0.0.2"
 dependencies = [
  "async-trait",
  "base64",
@@ -2632,6 +2632,8 @@ dependencies = [
 [[package]]
 name = "rustbasic-core"
 version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe4894fcb2d68b26207ea8303cd1d70c0e441cfdbc9a10a3ce3807995a88aec0"
 dependencies = [
  "async-trait",
  "axum",
