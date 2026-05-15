@@ -1,0 +1,10 @@
+/target
+/crates
+.env
+!.env.example
+/database/*.sqlite
+/storage/logs
+/storage/uploads
+# macOS junk files
+.DS_Store
+list.md
