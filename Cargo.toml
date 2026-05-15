@@ -1,6 +1,6 @@
 [package]
 name = "rustbasic-cli"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2024"
 description = "CLI tool for the RustBasic Framework."
 license = "MIT"
@@ -12,7 +12,7 @@ keywords = ["rustbasic", "framework", "cli", "scaffolding", "orm"]
 categories = ["development-tools", "command-line-utilities", "web-programming"]
 
 [dependencies]
-rustbasic-core = "0.1.4"
+rustbasic-core = "0.1.7"
 tokio = { version = "1.52.1", features = ["full"] }
 colored = "3.0"
 dotenvy = "0.15.7"
