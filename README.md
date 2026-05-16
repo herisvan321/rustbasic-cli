@@ -39,11 +39,12 @@ cargo install --path .
 - `rustbasic make:migration:add <column> <table>`: Create a new migration to add a column.
 - `rustbasic make:auth`: Scaffold a complete authentication system (Login, Register, Dashboard).
 
-### Database Commands
+### Database & Storage
 - `rustbasic migrate`: Run pending migrations.
 - `rustbasic migrate:refresh`: Rollback and re-run all migrations.
 - `rustbasic migrate:rollback`: Rollback the last migration batch.
 - `rustbasic db:seed`: Seed the database with initial data.
+- `rustbasic storage:link`: Create a symbolic link from `public/storage` to `storage/app/public` to make uploaded files accessible via URL.
 
 ### Utilities
 - `rustbasic key:generate`: Generate a new `APP_KEY` for your `.env` file.

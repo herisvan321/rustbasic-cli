@@ -126,7 +126,7 @@ fn main() {
                     std::process::exit(status.code().unwrap_or(1));
                 }
             }
-            "migrate" | "migrate:refresh" | "migrate:back" | "migrate:rollback" | "db:seed" => {
+            "migrate" | "migrate:refresh" | "migrate:back" | "migrate:rollback" | "db:seed" | "storage:link" => {
                 // Delegasi ke cargo run untuk memastikan kode lokal terbaca
                 delegate_to_cargo(&args);
             }
@@ -213,6 +213,7 @@ fn print_help() {
     println!("  {} {} <Nama>     {}", "rustbasic".blue(), "make:middleware".green(), "Membuat middleware baru".dimmed());
     println!("  {} {} <Nama>       {}", "rustbasic".blue(), "make:seeder".green(), "Membuat seeder baru".dimmed());
     println!("  {} {}                  {}", "rustbasic".blue(), "migrate".green(), "Menjalankan migrasi database".dimmed());
+    println!("  {} {}                {}", "rustbasic".blue(), "storage:link".green(), "Menghubungkan public/storage ke storage/app/public".dimmed());
     println!("  {} {}                   {}", "rustbasic".blue(), "serve".green(), "Menjalankan server (Auto-Reload)".dimmed());
     println!("  {} {}                 {}", "rustbasic".blue(), "version".green(), "Menampilkan versi CLI".dimmed());
     println!("\n💡 Gunakan 'rustbasic version' untuk informasi lebih lanjut.");
