@@ -21,21 +21,21 @@ r#"/* ---------------------------------------------------------
  * 📑 LABEL: {class_name} ({file_name})
  * --------------------------------------------------------- */
 
-use crate::app::view;
+use crate::app::inertia::inertia;
 use rustbasic_core::requests::Request;
-use rustbasic_core::axum::response::IntoResponse;
-use rustbasic_core::minijinja::context;
+use rustbasic_core::axum::response::Response;
+use rustbasic_core::serde_json::json;
 
 pub struct {class_name};
 
 impl {class_name} {{
-    pub async fn index(req: Request) -> impl IntoResponse {{
-        view(&req, "{snake_name}.rb.html", context! {{
-            title => "{class_name}"
-        }})
+    pub async fn index(req: Request) -> Response {{
+        inertia(req, "{pascal_name}", json!({{
+            "title": "{class_name}"
+        }}))
     }}
 }}
-"#, class_name = class_name, file_name = file_name, snake_name = snake_name);
+"#, class_name = class_name, file_name = file_name, pascal_name = pascal_name);
 
     fs::write(&file_path, template).expect("Gagal membuat file controller");
     println!("{} {}", "✅ Controller dibuat:".green(), file_path.cyan());
