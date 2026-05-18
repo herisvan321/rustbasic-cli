@@ -196,6 +196,20 @@ fn run_new_command(args: &[String]) {
                 println!("📦 {}", "Mengunduh dependencies...".bold());
                 let _ = std::process::Command::new("cargo").args(["fetch"]).status();
                 println!("\n✅ {}", "Project berhasil dibuat!".green().bold());
+                
+                println!("\n🚀 {}", "Untuk memulai pengembangan, ikuti langkah berikut:".magenta().bold());
+                
+                println!("\n  📂 {}", "1. Masuk ke direktori project:".bold());
+                println!("     {} {}", "$".dimmed(), format!("cd {}", project_name).cyan().bold());
+                
+                println!("\n  💻 {}", "2. Setup & Jalankan Frontend:".bold());
+                println!("     {} {}", "$".dimmed(), "npm install".cyan().bold());
+                println!("     {} {}    {}", "$".dimmed(), "npm run dev".cyan().bold(), "# Menjalankan development server (Vite/Inertia)".dimmed());
+                println!("     {} {} {} {}", "atau".dimmed(), "$".dimmed(), "npm run build".cyan().bold(), "# Build frontend untuk produksi".dimmed());
+                
+                println!("\n  🦀 {}", "3. Jalankan Backend:".bold());
+                println!("     {} {}", "$".dimmed(), "rustbasic serve".cyan().bold());
+                println!();
             }
         }
     }
