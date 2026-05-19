@@ -2612,8 +2612,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustbasic-breeze"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ceed2d5e19b171e65bec23d78bd7a8a3d50f91f356205b370170333ce31d8031"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "colored",
+ "regex",
+ "rustbasic-core",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "rustbasic-cli"
-version = "0.0.7"
+version = "0.0.10"
 dependencies = [
  "async-trait",
  "base64",
@@ -2622,6 +2639,7 @@ dependencies = [
  "dotenvy",
  "rand 0.10.1",
  "regex",
+ "rustbasic-breeze",
  "rustbasic-core",
  "sea-orm",
  "sea-orm-migration",
@@ -2632,9 +2650,9 @@ dependencies = [
 
 [[package]]
 name = "rustbasic-core"
-version = "0.1.10"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3adc3ffff94f94fd279dcaee1b61c9fa904c66f2e7c288f45f3e8d506f029c5c"
+checksum = "363b0d1ea65c8b6b640f14174a0c9afdda588bfb6ef98bb3d0c06d263af346ac"
 dependencies = [
  "async-trait",
  "axum",

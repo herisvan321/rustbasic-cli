@@ -3,14 +3,11 @@ pub mod database;
 pub mod monitoring;
 pub mod builder;
 pub mod utils;
-pub mod auth;
-
 pub use scaffolding::*;
 pub use database::*;
 pub use monitoring::*;
 pub use builder::*;
 pub use utils::*;
-pub use auth::*;
 
 use std::env;
 use dotenvy::dotenv;

@@ -111,11 +111,6 @@ fn main() {
         match command {
             "serve" => {
                 println!("\n   {} {}", "🚀".bold(), "Menjalankan server RustBasic dengan Auto-Reload...".magenta().bold());
-                let host = env::var("APP_HOST").unwrap_or_else(|_| "localhost".to_string());
-                let port = env::var("APP_PORT").unwrap_or_else(|_| "4000".to_string());
-                let display_host = if host == "0.0.0.0" { "localhost".to_string() } else { host };
-                let app_url = format!("http://{}:{}", display_host, port);
-                utils::wait_and_open(app_url);
 
                 let status = std::process::Command::new("cargo")
                     .args(["watch", "-c", "-q", "--no-ignore", "-i", "target", "-w", "src", "-w", ".env", "-w", "src/resources", "-x", "run"])
@@ -135,15 +130,15 @@ fn main() {
             }
             "make:auth" | "auth" => {
                 if args.len() >= 3 && args[2] == "back" {
-                    auth::remove_auth().await;
+                    rustbasic_breeze::remove_auth().await;
                     println!("\n{} {}", "✅".green(), "Scaffolding autentikasi berhasil dihapus.".green().bold());
                 } else {
-                    auth::make_auth().await;
+                    rustbasic_breeze::make_auth().await;
                     println!("\n{} {}", "✅".green(), "Scaffolding autentikasi berhasil dibuat.".green().bold());
                 }
             }
             "auth:back" => {
-                auth::remove_auth().await;
+                rustbasic_breeze::remove_auth().await;
             }
             _ => {
                 println!("{} {}", "❌ Error: Perintah tidak dikenal:".red().bold(), command.yellow());

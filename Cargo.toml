@@ -1,6 +1,6 @@
 [package]
 name = "rustbasic-cli"
-version = "0.0.7"
+version = "0.0.10"
 edition = "2024"
 description = "CLI tool for the RustBasic Framework."
 license = "MIT"
@@ -13,6 +13,7 @@ categories = ["development-tools", "command-line-utilities", "web-programming"]
 
 [dependencies]
 rustbasic-core = "0.1"
+rustbasic-breeze = "0.0"
 tokio = { version = "1.52.1", features = ["full"] }
 colored = "3.0"
 dotenvy = "0.15.7"
@@ -29,3 +30,5 @@ base64 = "0.22.1"
 [[bin]]
 name = "rustbasic"
 path = "src/main.rs"
+
+
