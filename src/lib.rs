@@ -34,6 +34,7 @@ where
     // .env hanya diwajibkan untuk perintah selain 'new'
     if command != "new" {
         let _ = dotenv();
+        ensure_session().await;
     }
 
     match command.as_str() {
@@ -88,6 +89,8 @@ pub async fn handle<M: sea_orm_migration::MigratorTrait>(cfg: &rustbasic_core::C
     if !is_migration_cmd && !is_storage_cmd {
         return false;
     }
+
+    ensure_session().await;
 
     println!("{} {}", "🛠️  RustBasic Local CLI - Command:".magenta().bold(), command.yellow());
 

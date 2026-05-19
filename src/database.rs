@@ -78,3 +78,111 @@ pub fn generate_app_key() {
         }
     }
 }
+
+pub async fn ensure_session() {
+    if !std::path::Path::new(".env").exists() {
+        return;
+    }
+
+    let _ = dotenvy::dotenv();
+    let cfg = Config::load();
+
+    // 1. Hubungkan ke database dengan aman (tanpa panik jika gagal)
+    let db_url = if cfg.db_connection == "mysql" {
+        format!(
+            "mysql://{}:{}@{}:{}/{}",
+            cfg.db_username, cfg.db_password, cfg.db_host, cfg.db_port, cfg.db_database
+        )
+    } else {
+        format!("sqlite:database/{}.sqlite?mode=rwc", cfg.db_database)
+    };
+
+    // Pastikan folder database ada untuk sqlite
+    if cfg.db_connection != "mysql" {
+        let _ = std::fs::create_dir_all("database");
+    }
+
+    let mut opt = sea_orm::ConnectOptions::new(db_url);
+    opt.max_connections(5)
+       .connect_timeout(std::time::Duration::from_secs(3))
+       .sqlx_logging(false);
+
+    let db = match sea_orm::Database::connect(opt).await {
+        Ok(conn) => conn,
+        Err(_) => {
+            // Abaikan jika database belum siap/tidak bisa terhubung (agar perintah seperti migrate/help/new tidak crash)
+            return;
+        }
+    };
+
+    // 2. Pastikan tabel sessions ada di database
+    let create_table_sql = if cfg.db_connection == "mysql" {
+        "CREATE TABLE IF NOT EXISTS sessions (
+            id VARCHAR(255) PRIMARY KEY,
+            payload TEXT NOT NULL,
+            last_activity BIGINT NOT NULL,
+            ip_address VARCHAR(45)
+        )"
+    } else {
+        "CREATE TABLE IF NOT EXISTS sessions (
+            id TEXT PRIMARY KEY,
+            payload TEXT NOT NULL,
+            last_activity BIGINT NOT NULL,
+            ip_address TEXT
+        )"
+    };
+
+    let stmt = sea_orm::Statement::from_string(db.get_database_backend(), create_table_sql.to_string());
+    if db.execute(stmt).await.is_err() {
+        return;
+    }
+
+    // 3. Baca dan verifikasi session ID
+    let session_file = ".rustbasic_session";
+    let mut session_id = String::new();
+    let mut need_to_write = false;
+
+    if let Ok(content) = fs::read_to_string(session_file) {
+        session_id = content.trim().to_string();
+    }
+
+    let mut session_exists = false;
+
+    if !session_id.is_empty() {
+        let check_sql = format!("SELECT id FROM sessions WHERE id = '{}'", session_id);
+        let stmt = sea_orm::Statement::from_string(db.get_database_backend(), check_sql);
+        if let Ok(Some(_)) = db.query_one(stmt).await {
+            session_exists = true;
+        }
+    }
+
+    if !session_exists {
+        let mut bytes = [0u8; 32];
+        rand::rng().fill_bytes(&mut bytes);
+        session_id = general_purpose::STANDARD.encode(bytes);
+        need_to_write = true;
+
+        let now = chrono::Utc::now().timestamp();
+        let insert_sql = format!(
+            "INSERT INTO sessions (id, payload, last_activity, ip_address) VALUES ('{}', '{}', {}, '{}')",
+            session_id, "{}", now, "127.0.0.1"
+        );
+        let stmt = sea_orm::Statement::from_string(db.get_database_backend(), insert_sql);
+        if db.execute(stmt).await.is_ok() {
+            println!("✨ {} ({})", "Session baru berhasil dibuat dan disimpan di database.".green().bold(), session_id.cyan());
+        }
+    } else {
+        let now = chrono::Utc::now().timestamp();
+        let update_sql = format!(
+            "UPDATE sessions SET last_activity = {} WHERE id = '{}'",
+            now, session_id
+        );
+        let stmt = sea_orm::Statement::from_string(db.get_database_backend(), update_sql);
+        let _ = db.execute(stmt).await;
+    }
+
+    if need_to_write {
+        let _ = fs::write(session_file, &session_id);
+    }
+}
+

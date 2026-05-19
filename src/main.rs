@@ -13,6 +13,14 @@ fn main() {
 
     let command = args[1].as_str();
 
+    // Jalankan pengecekan session di database sebelum menjalankan perintah apapun (jika .env ada)
+    if command != "new" && std::path::Path::new(".env").exists()
+        && let Ok(rt) = tokio::runtime::Runtime::new() {
+            rt.block_on(async {
+                database::ensure_session().await;
+            });
+        }
+
     // Perintah yang TIDAK butuh runtime async (Sangat Cepat)
     match command {
         "-v" | "--version" | "version" => {
@@ -178,8 +186,8 @@ fn run_new_command(args: &[String]) {
         .args(["clone", "https://github.com/herisvan321/rustbasic", project_name])
         .status();
 
-    if let Ok(s) = status {
-        if s.success() {
+    if let Ok(s) = status
+        && s.success() {
             let _ = std::process::Command::new("rm").args(["-rf", &format!("{}/.git", project_name)]).status();
             let env_example = format!("{}/.env.example", project_name);
             let env_file = format!("{}/.env", project_name);
@@ -207,7 +215,6 @@ fn run_new_command(args: &[String]) {
                 println!();
             }
         }
-    }
 }
 
 fn print_help() {
