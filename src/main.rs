@@ -176,24 +176,12 @@ fn main() {
                     }
                 }
             }
-            "migrate" | "migrate:refresh" | "migrate:back" | "migrate:rollback" | "db:seed" | "storage:link" => {
+            "migrate" | "migrate:refresh" | "migrate:back" | "migrate:rollback" | "db:seed" | "storage:link" | "make:auth" | "auth" | "auth:back" => {
                 // Delegasi ke cargo run untuk memastikan kode lokal terbaca
                 delegate_to_cargo(&args);
             }
             "cache:clear" => {
                 database::clear_cache().await;
-            }
-            "make:auth" | "auth" => {
-                if args.len() >= 3 && args[2] == "back" {
-                    rustbasic_breeze::remove_auth().await;
-                    println!("\n{} {}", "✅".green(), "Scaffolding autentikasi berhasil dihapus.".green().bold());
-                } else {
-                    rustbasic_breeze::make_auth().await;
-                    println!("\n{} {}", "✅".green(), "Scaffolding autentikasi berhasil dibuat.".green().bold());
-                }
-            }
-            "auth:back" => {
-                rustbasic_breeze::remove_auth().await;
             }
             _ => {
                 println!("{} {}", "❌ Error: Perintah tidak dikenal:".red().bold(), command.yellow());

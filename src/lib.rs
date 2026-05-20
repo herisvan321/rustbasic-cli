@@ -92,7 +92,7 @@ pub fn print_help() {
 }
 
 /// Fungsi utama untuk menangani CLI di tingkat project (dipanggil oleh project main.rs)
-pub async fn handle<M: sea_orm_migration::MigratorTrait>(cfg: &rustbasic_core::Config, args: &[String]) -> bool {
+pub async fn handle<M: sea_orm_migration::MigratorTrait>(args: &[String]) -> bool {
     if args.len() < 2 {
         return false;
     }
@@ -116,8 +116,8 @@ pub async fn handle<M: sea_orm_migration::MigratorTrait>(cfg: &rustbasic_core::C
         return true;
     }
 
-    // Gunakan fungsi connect dari core agar logic koneksi konsisten
-    let db = rustbasic_core::database::connect(cfg).await;
+    // Gunakan fungsi connect lokal
+    let db = crate::database::connect().await;
 
     match command {
         "migrate" => {

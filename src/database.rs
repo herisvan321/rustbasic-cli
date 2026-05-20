@@ -1,7 +1,85 @@
 use std::fs;
-use rustbasic_core::Config;
-use rustbasic_core::database::connect;
 use base64::{Engine as _, engine::general_purpose};
+
+pub struct LocalDbConfig {
+    pub db_connection: String,
+    pub db_host: String,
+    pub db_port: u16,
+    pub db_database: String,
+    pub db_username: String,
+    pub db_password: String,
+}
+
+impl LocalDbConfig {
+    pub fn load() -> Self {
+        use std::env;
+        Self {
+            db_connection: env::var("DB_CONNECTION").unwrap_or_else(|_| "sqlite".to_string()),
+            db_host: env::var("DB_HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
+            db_port: env::var("DB_PORT")
+                .unwrap_or_else(|_| "3306".to_string())
+                .parse()
+                .unwrap_or(3306),
+            db_database: env::var("DB_DATABASE").unwrap_or_else(|_| "rustbasic".to_string()),
+            db_username: env::var("DB_USERNAME").unwrap_or_else(|_| "root".to_string()),
+            db_password: env::var("DB_PASSWORD").unwrap_or_default(),
+        }
+    }
+
+    pub fn db_backend(&self) -> sea_orm::DbBackend {
+        if self.db_connection == "mysql" {
+            sea_orm::DbBackend::MySql
+        } else {
+            sea_orm::DbBackend::Sqlite
+        }
+    }
+}
+
+pub async fn connect() -> sea_orm::DatabaseConnection {
+    let cfg = LocalDbConfig::load();
+    let db_url = if cfg.db_connection == "mysql" {
+        format!(
+            "mysql://{}:{}@{}:{}/{}",
+            cfg.db_username, cfg.db_password, cfg.db_host, cfg.db_port, cfg.db_database
+        )
+    } else {
+        format!("sqlite:database/{}.sqlite?mode=rwc", cfg.db_database)
+    };
+
+    if cfg.db_connection != "mysql" {
+        let _ = std::fs::create_dir_all("database");
+    }
+
+    let mut opt = sea_orm::ConnectOptions::new(db_url);
+    opt.max_connections(20)
+       .min_connections(5)
+       .connect_timeout(std::time::Duration::from_secs(8))
+       .idle_timeout(std::time::Duration::from_secs(8))
+       .max_lifetime(std::time::Duration::from_secs(8))
+       .sqlx_logging(true);
+
+    match sea_orm::Database::connect(opt.clone()).await {
+        Ok(conn) => conn,
+        Err(e) => {
+            let err_msg = e.to_string();
+            if (err_msg.contains("1049") || err_msg.contains("Unknown database")) && cfg.db_connection == "mysql" {
+                println!("{}", "⚠️  Database tidak ditemukan. Mencoba membuat database baru...".yellow());
+                let root_url = format!(
+                    "mysql://{}:{}@{}:{}",
+                    cfg.db_username, cfg.db_password, cfg.db_host, cfg.db_port
+                );
+                if let Ok(root_db) = sea_orm::Database::connect(root_url).await {
+                    let create_query = format!("CREATE DATABASE IF NOT EXISTS `{}`", cfg.db_database);
+                    if root_db.execute(sea_orm::Statement::from_string(sea_orm::DbBackend::MySql, create_query)).await.is_ok() {
+                        println!("✅ Database '{}' berhasil dibuat.", cfg.db_database.green());
+                        return sea_orm::Database::connect(opt).await.expect("Gagal terhubung setelah membuat database");
+                    }
+                }
+            }
+            panic!("Gagal terhubung ke database: {:?}", e);
+        }
+    }
+}
 use rand::Rng;
 use regex::Regex;
 use colored::*;
@@ -30,8 +108,8 @@ pub async fn clear_cache() {
     }
 
     // 2. Clear Sessions in DB
-    let cfg = Config::load();
-    let db = connect(&cfg).await;
+    let cfg = LocalDbConfig::load();
+    let db = connect().await;
     
     let truncate_sql = if cfg.db_connection == "mysql" {
         "TRUNCATE TABLE sessions"
@@ -85,7 +163,7 @@ pub async fn ensure_session() {
     }
 
     let _ = dotenvy::dotenv();
-    let cfg = Config::load();
+    let cfg = LocalDbConfig::load();
 
     // 1. Hubungkan ke database dengan aman (tanpa panik jika gagal)
     let db_url = if cfg.db_connection == "mysql" {
