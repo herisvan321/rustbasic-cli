@@ -3,6 +3,7 @@ use std::process::Command;
 use regex::Regex;
 use colored::*;
 
+#[allow(clippy::collapsible_if)]
 pub fn list_routes() {
     let routes_dir = "src/routes";
     let mut all_content = String::new();
@@ -10,11 +11,12 @@ pub fn list_routes() {
     if let Ok(entries) = fs::read_dir(routes_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("rs")
-                && let Ok(content) = fs::read_to_string(&path) {
+            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("rs") {
+                if let Ok(content) = fs::read_to_string(&path) {
                     all_content.push_str(&content);
                     all_content.push('\n');
                 }
+            }
         }
     }
 

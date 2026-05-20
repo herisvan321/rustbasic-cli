@@ -3,6 +3,7 @@ use dotenvy::dotenv;
 use colored::*;
 use rustbasic_cli::*;
 
+#[allow(clippy::collapsible_if)]
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -14,12 +15,13 @@ fn main() {
     let command = args[1].as_str();
 
     // Jalankan pengecekan session di database sebelum menjalankan perintah apapun (jika .env ada)
-    if command != "new" && std::path::Path::new(".env").exists()
-        && let Ok(rt) = tokio::runtime::Runtime::new() {
+    if command != "new" && std::path::Path::new(".env").exists() {
+        if let Ok(rt) = tokio::runtime::Runtime::new() {
             rt.block_on(async {
                 database::ensure_session().await;
             });
         }
+    }
 
     // Perintah yang TIDAK butuh runtime async (Sangat Cepat)
     match command {
@@ -118,15 +120,60 @@ fn main() {
 
         match command {
             "serve" => {
-                println!("\n   {} {}", "🚀".bold(), "Menjalankan server RustBasic dengan Auto-Reload...".magenta().bold());
+                let has_watch = std::process::Command::new("cargo")
+                    .args(["watch", "--version"])
+                    .output()
+                    .map(|o| o.status.success())
+                    .unwrap_or(false);
 
-                let status = std::process::Command::new("cargo")
-                    .args(["watch", "-c", "-q", "--no-ignore", "-i", "target", "-w", "src", "-w", ".env", "-w", "src/resources", "-x", "run"])
-                    .status()
-                    .expect("❌ Gagal menjalankan cargo watch.");
-                
-                if !status.success() {
-                    std::process::exit(status.code().unwrap_or(1));
+                if has_watch {
+                    println!("\n   {} {}", "🚀".bold(), "Menjalankan server RustBasic dengan Auto-Reload...".magenta().bold());
+
+                    let mut watch_args = vec![
+                        "watch".to_string(),
+                        "-c".to_string(),
+                        "-q".to_string(),
+                        "--no-ignore".to_string(),
+                        "-i".to_string(),
+                        "target".to_string(),
+                        "-w".to_string(),
+                        "src".to_string(),
+                    ];
+
+                    if std::path::Path::new(".env").exists() {
+                        watch_args.push("-w".to_string());
+                        watch_args.push(".env".to_string());
+                    }
+
+                    if std::path::Path::new("src/resources").exists() {
+                        watch_args.push("-w".to_string());
+                        watch_args.push("src/resources".to_string());
+                    }
+
+                    watch_args.push("-x".to_string());
+                    watch_args.push("run".to_string());
+
+                    let status = std::process::Command::new("cargo")
+                        .args(&watch_args)
+                        .status()
+                        .expect("❌ Gagal menjalankan cargo watch.");
+                    
+                    if !status.success() {
+                        std::process::exit(status.code().unwrap_or(1));
+                    }
+                } else {
+                    println!("\n{} {}", "⚠️  Peringatan:".yellow().bold(), "cargo-watch tidak terdeteksi. Menjalankan server tanpa Auto-Reload...".yellow());
+                    println!("{}", "💡 Tips: Instal cargo-watch dengan 'cargo install cargo-watch' untuk mengaktifkan Auto-Reload.".cyan().italic());
+                    println!("\n   {} {}", "🚀".bold(), "Menjalankan server RustBasic...".magenta().bold());
+
+                    let status = std::process::Command::new("cargo")
+                        .arg("run")
+                        .status()
+                        .expect("❌ Gagal menjalankan cargo run.");
+                    
+                    if !status.success() {
+                        std::process::exit(status.code().unwrap_or(1));
+                    }
                 }
             }
             "migrate" | "migrate:refresh" | "migrate:back" | "migrate:rollback" | "db:seed" | "storage:link" => {
@@ -186,9 +233,14 @@ fn run_new_command(args: &[String]) {
         .args(["clone", "https://github.com/herisvan321/rustbasic", project_name])
         .status();
 
-    if let Ok(s) = status
-        && s.success() {
-            let _ = std::process::Command::new("rm").args(["-rf", &format!("{}/.git", project_name)]).status();
+    match status {
+        Ok(s) if s.success() => {
+            let git_dir = format!("{}/.git", project_name);
+            let git_path = std::path::Path::new(&git_dir);
+            if let Err(e) = utils::remove_dir_all_recursive(git_path) {
+                println!("{} Gagal menghapus folder .git template: {}", "⚠️  Peringatan:".yellow().bold(), e);
+            }
+            
             let env_example = format!("{}/.env.example", project_name);
             let env_file = format!("{}/.env", project_name);
             if std::path::Path::new(&env_example).exists() {
@@ -197,7 +249,11 @@ fn run_new_command(args: &[String]) {
             if std::env::set_current_dir(project_name).is_ok() {
                 database::generate_app_key();
                 println!("📦 {}", "Mengunduh dependencies...".bold());
-                let _ = std::process::Command::new("cargo").args(["fetch"]).status();
+                let fetch_status = std::process::Command::new("cargo").args(["fetch"]).status();
+                if fetch_status.is_err() || !fetch_status.unwrap().success() {
+                    println!("{} Gagal mengunduh dependencies menggunakan cargo fetch. Anda dapat menjalankannya secara manual nanti.", "⚠️  Peringatan:".yellow().bold());
+                }
+                
                 println!("\n✅ {}", "Project berhasil dibuat!".green().bold());
                 
                 println!("\n🚀 {}", "Untuk memulai pengembangan, ikuti langkah berikut:".magenta().bold());
@@ -215,6 +271,14 @@ fn run_new_command(args: &[String]) {
                 println!();
             }
         }
+        Ok(s) => {
+            println!("\n❌ {} (Status: {})", "Gagal mendownload template project. Git clone keluar dengan error.".red().bold(), s);
+        }
+        Err(e) => {
+            println!("\n❌ {}", "Gagal menjalankan perintah 'git'. Pastikan Git sudah terinstal dan ada dalam PATH sistem Anda.".red().bold());
+            println!("   {} {}", "Detail Error:".dimmed(), e);
+        }
+    }
 }
 
 fn print_help() {
@@ -222,15 +286,32 @@ fn print_help() {
     println!("{}", "=================".magenta());
     println!("{}", "Penggunaan:".bold());
     println!("  {} {} <Nama>         {}", "rustbasic".blue(), "new".green(), "Membuat project RustBasic baru".dimmed());
+    println!("  {} {}                 {}", "rustbasic".blue(), "serve".green(), "Menjalankan server pengembangan (Auto-Reload/Fallback)".dimmed());
+    println!("  {} {}                 {}", "rustbasic".blue(), "build".green(), "Membangun project RustBasic".dimmed());
+    
+    println!("\n{}", "Database & Migrasi:".bold());
+    println!("  {} {}               {}", "rustbasic".blue(), "migrate".green(), "Menjalankan migrasi database".dimmed());
+    println!("  {} {}       {}", "rustbasic".blue(), "migrate:refresh".green(), "Mereset dan menjalankan ulang semua migrasi".dimmed());
+    println!("  {} {}          {}", "rustbasic".blue(), "migrate:back".green(), "Rollback migrasi database terakhir".dimmed());
+    println!("  {} {}               {}", "rustbasic".blue(), "db:seed".green(), "Menjalankan seeder database".dimmed());
+    
+    println!("\n{}", "Scaffolding & Generator:".bold());
     println!("  {} {} <Nama>   {}", "rustbasic".blue(), "make:controller".green(), "Membuat controller baru".dimmed());
-    println!("  {} {} <Nama> [-m]   {}", "rustbasic".blue(), "make:model".green(), "Membuat model & migration".dimmed());
-    println!("  {} {} <Nama>    {}", "rustbasic".blue(), "make:migration".green(), "Membuat file migrasi (Create)".dimmed());
-    println!("  {} {} <Kolom> <Tabel> {}", "rustbasic".blue(), "make:migration:add".green(), "Membuat file migrasi (Add Column)".dimmed());
+    println!("  {} {} <Nama> [-m]   {}", "rustbasic".blue(), "make:model".green(), "Membuat model baru (tambahkan -m untuk migrasinya)".dimmed());
+    println!("  {} {} <Nama>    {}", "rustbasic".blue(), "make:migration".green(), "Membuat file migrasi tabel baru".dimmed());
+    println!("  {} {} <Kolom> <Tabel> {}", "rustbasic".blue(), "make:migration:add".green(), "Membuat file migrasi tambah kolom baru".dimmed());
     println!("  {} {} <Nama>     {}", "rustbasic".blue(), "make:middleware".green(), "Membuat middleware baru".dimmed());
     println!("  {} {} <Nama>       {}", "rustbasic".blue(), "make:seeder".green(), "Membuat seeder baru".dimmed());
-    println!("  {} {}                  {}", "rustbasic".blue(), "migrate".green(), "Menjalankan migrasi database".dimmed());
-    println!("  {} {}                {}", "rustbasic".blue(), "storage:link".green(), "Menghubungkan public/storage ke storage/app/public".dimmed());
-    println!("  {} {}                   {}", "rustbasic".blue(), "serve".green(), "Menjalankan server (Auto-Reload)".dimmed());
-    println!("  {} {}                 {}", "rustbasic".blue(), "version".green(), "Menampilkan versi CLI".dimmed());
-    println!("\n💡 Gunakan 'rustbasic version' untuk informasi lebih lanjut.");
+    println!("  {} {}             {}", "rustbasic".blue(), "make:auth".green(), "Membuat scaffolding autentikasi bawaan (Breeze)".dimmed());
+    
+    println!("\n{}", "Utilitas & Monitoring:".bold());
+    println!("  {} {}          {}", "rustbasic".blue(), "key:generate".green(), "Membuat application key (APP_KEY) baru".dimmed());
+    println!("  {} {}           {}", "rustbasic".blue(), "cache:clear".green(), "Membersihkan cache logs dan sessions database".dimmed());
+    println!("  {} {}          {}", "rustbasic".blue(), "storage:link".green(), "Menghubungkan folder storage ke folder public".dimmed());
+    println!("  {} {}            {}", "rustbasic".blue(), "route:list".green(), "Menampilkan daftar route aktif".dimmed());
+    println!("  {} {}        {}", "rustbasic".blue(), "check:security".green(), "Melakukan audit keamanan dependency".dimmed());
+    println!("  {} {}          {}", "rustbasic".blue(), "check:update".green(), "Memeriksa pembaruan dependency di crates.io".dimmed());
+    println!("  {} {}               {}", "rustbasic".blue(), "version".green(), "Menampilkan versi RustBasic CLI".dimmed());
+    
+    println!("\n💡 Gunakan 'rustbasic version' untuk melihat informasi versi saat ini.");
 }

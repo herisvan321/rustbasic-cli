@@ -47,3 +47,45 @@ pub fn wait_and_open(url: String) {
         }
     });
 }
+
+pub fn remove_dir_all_recursive(path: &std::path::Path) -> std::io::Result<()> {
+    if path.is_dir() {
+        for entry in std::fs::read_dir(path)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                remove_dir_all_recursive(&path)?;
+            } else {
+                #[cfg(windows)]
+                {
+                    let mut perms = std::fs::metadata(&path)?.permissions();
+                    if perms.readonly() {
+                        perms.set_readonly(false);
+                        std::fs::set_permissions(&path, perms)?;
+                    }
+                }
+                std::fs::remove_file(&path)?;
+            }
+        }
+        #[cfg(windows)]
+        {
+            let mut perms = std::fs::metadata(path)?.permissions();
+            if perms.readonly() {
+                perms.set_readonly(false);
+                std::fs::set_permissions(path, perms)?;
+            }
+        }
+        std::fs::remove_dir(path)?;
+    } else if path.exists() {
+        #[cfg(windows)]
+        {
+            let mut perms = std::fs::metadata(path)?.permissions();
+            if perms.readonly() {
+                perms.set_readonly(false);
+                std::fs::set_permissions(path, perms)?;
+            }
+        }
+        std::fs::remove_file(path)?;
+    }
+    Ok(())
+}
