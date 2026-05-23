@@ -57,38 +57,7 @@ where
 }
 
 pub fn print_help() {
-    println!("\n{}", "🛠️  RustBasic CLI".magenta().bold());
-    println!("{}", "=================".magenta());
-    println!("{}", "Penggunaan:".bold());
-    println!("  {} {} <Nama>         {}", "rustbasic".blue(), "new".green(), "Membuat project RustBasic baru".dimmed());
-    println!("  {} {}                 {}", "rustbasic".blue(), "serve".green(), "Menjalankan server pengembangan (Auto-Reload/Fallback)".dimmed());
-    println!("  {} {}                 {}", "rustbasic".blue(), "build".green(), "Membangun project RustBasic".dimmed());
-    
-    println!("\n{}", "Database & Migrasi:".bold());
-    println!("  {} {}               {}", "rustbasic".blue(), "migrate".green(), "Menjalankan migrasi database".dimmed());
-    println!("  {} {}       {}", "rustbasic".blue(), "migrate:refresh".green(), "Mereset dan menjalankan ulang semua migrasi".dimmed());
-    println!("  {} {}          {}", "rustbasic".blue(), "migrate:back".green(), "Rollback migrasi database terakhir".dimmed());
-    println!("  {} {}               {}", "rustbasic".blue(), "db:seed".green(), "Menjalankan seeder database".dimmed());
-    
-    println!("\n{}", "Scaffolding & Generator:".bold());
-    println!("  {} {} <Nama>   {}", "rustbasic".blue(), "make:controller".green(), "Membuat controller baru".dimmed());
-    println!("  {} {} <Nama> [-m]   {}", "rustbasic".blue(), "make:model".green(), "Membuat model baru (tambahkan -m untuk migrasinya)".dimmed());
-    println!("  {} {} <Nama>    {}", "rustbasic".blue(), "make:migration".green(), "Membuat file migrasi tabel baru".dimmed());
-    println!("  {} {} <Kolom> <Tabel> {}", "rustbasic".blue(), "make:migration:add".green(), "Membuat file migrasi tambah kolom baru".dimmed());
-    println!("  {} {} <Nama>     {}", "rustbasic".blue(), "make:middleware".green(), "Membuat middleware baru".dimmed());
-    println!("  {} {} <Nama>       {}", "rustbasic".blue(), "make:seeder".green(), "Membuat seeder baru".dimmed());
-    println!("  {} {}             {}", "rustbasic".blue(), "make:auth".green(), "Membuat scaffolding autentikasi bawaan (Breeze)".dimmed());
-    
-    println!("\n{}", "Utilitas & Monitoring:".bold());
-    println!("  {} {}          {}", "rustbasic".blue(), "key:generate".green(), "Membuat application key (APP_KEY) baru".dimmed());
-    println!("  {} {}           {}", "rustbasic".blue(), "cache:clear".green(), "Membersihkan cache logs dan sessions database".dimmed());
-    println!("  {} {}          {}", "rustbasic".blue(), "storage:link".green(), "Menghubungkan folder storage ke folder public".dimmed());
-    println!("  {} {}            {}", "rustbasic".blue(), "route:list".green(), "Menampilkan daftar route aktif".dimmed());
-    println!("  {} {}        {}", "rustbasic".blue(), "check:security".green(), "Melakukan audit keamanan dependency".dimmed());
-    println!("  {} {}          {}", "rustbasic".blue(), "check:update".green(), "Memeriksa pembaruan dependency di crates.io".dimmed());
-    println!("  {} {}               {}", "rustbasic".blue(), "version".green(), "Menampilkan versi RustBasic CLI".dimmed());
-    
-    println!("\n💡 Gunakan 'rustbasic version' untuk melihat informasi versi saat ini.");
+    println!("Gunakan 'rustbasic' untuk melihat opsi perintah.");
 }
 
 /// Fungsi utama untuk menangani CLI di tingkat project (dipanggil oleh project main.rs)

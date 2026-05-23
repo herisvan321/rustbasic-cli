@@ -1,6 +1,6 @@
 [package]
 name = "rustbasic-cli"
-version = "0.0.15"
+version = "0.0.16"
 edition = "2024"
 description = "CLI tool for the RustBasic Framework."
 license = "MIT"
@@ -16,8 +16,8 @@ tokio = { version = "1.52.1", features = ["full"] }
 colored = "3.0"
 dotenvy = "0.15.7"
 chrono = { version = "0.4.39", features = ["serde"] }
-sea-orm = { version = "1.1.4", features = ["macros", "with-chrono"] }
-sea-orm-migration = "1.1.4"
+sea-orm = { version = "1.1.4", features = ["runtime-tokio-rustls", "sqlx-sqlite", "sqlx-mysql", "macros", "with-chrono"], default-features = false }
+sea-orm-migration = { version = "1.1.4", features = ["runtime-tokio-rustls", "sqlx-sqlite", "sqlx-mysql"], default-features = false }
 regex = "1.10"
 rand = "0.10.1"
 base64 = "0.22.1"

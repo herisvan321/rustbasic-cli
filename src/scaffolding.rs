@@ -30,7 +30,7 @@ pub struct {class_name};
 
 impl {class_name} {{
     pub async fn index(req: Request) -> Response {{
-        inertia(req, "{pascal_name}", json!({{
+        inertia(&req, "{pascal_name}", json!({{
             "title": "{class_name}"
         }}))
     }}
@@ -200,8 +200,8 @@ pub fn make_rust_migration(name: &str) {
     let table_iden = if pascal_name.ends_with('s') { pascal_name } else { format!("{}s", pascal_name) };
 
     let template = format!(
-r#"use sea_orm_migration::prelude::*;
-use async_trait::async_trait;
+r#"use rustbasic_core::sea_orm_migration::prelude::*;
+use rustbasic_core::async_trait;
 
 #[derive(Iden)]
 enum {table_iden} {{
@@ -276,8 +276,8 @@ pub fn make_rust_migration_add(column: &str, table: &str) {
     let table_pascal = to_pascal_case(table);
 
     let template = format!(
-r#"use sea_orm_migration::prelude::*;
-use async_trait::async_trait;
+r#"use rustbasic_core::sea_orm_migration::prelude::*;
+use rustbasic_core::async_trait;
 
 #[derive(Iden)]
 enum {table_pascal} {{
@@ -373,7 +373,7 @@ use rustbasic_core::seeder::SeederTrait;
 
 pub struct {class_name};
 
-#[async_trait::async_trait]
+#[rustbasic_core::async_trait]
 impl SeederTrait for {class_name} {{
     async fn run(&self, _db: &DatabaseConnection) -> Result<(), rustbasic_core::sea_orm::DbErr> {{
         println!("   {{}} Sedang memproses {class_name}...", "⏳".blue());
