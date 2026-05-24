@@ -1313,7 +1313,7 @@ dependencies = [
 
 [[package]]
 name = "rustbasic-cli"
-version = "0.0.17"
+version = "0.0.19"
 dependencies = [
  "base64",
  "chrono",
