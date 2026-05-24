@@ -138,23 +138,17 @@ pub fn make_model(name: &str) {
     }
 
     let template = format!(
-r#"use rustbasic_core::sea_orm::entity::prelude::*;
-use serde::{{Deserialize, Serialize}};
+r#"use rustbasic_core::model;
+use rustbasic_core::sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "{}")]
-pub struct Model {{
-    #[sea_orm(primary_key)]
-    pub id: i32,
-    pub created_at: Option<DateTime>,
-    pub updated_at: Option<DateTime>,
+model! {{
+    table: "{table_name}",
+    Model {{
+        #[sea_orm(primary_key)]
+        pub id: i32,
+    }}
 }}
-
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {{}}
-
-impl ActiveModelBehavior for ActiveModel {{}}
-"#, table_name);
+"#, table_name = table_name);
 
     fs::write(&file_path, template).expect("Gagal membuat file model");
     println!("{} {}", "✅ Model dibuat:".green(), file_path.cyan());
@@ -196,20 +190,12 @@ pub fn make_rust_migration(name: &str) {
         return;
     }
 
-    let pascal_name = to_pascal_case(name);
-    let table_iden = if pascal_name.ends_with('s') { pascal_name } else { format!("{}s", pascal_name) };
+    let table_name = if snake_name.ends_with('s') { snake_name.clone() } else { format!("{}s", snake_name) };
 
     let template = format!(
 r#"use rustbasic_core::sea_orm_migration::prelude::*;
 use rustbasic_core::async_trait;
-
-#[derive(Iden)]
-enum {table_iden} {{
-    Table,
-    Id,
-    CreatedAt,
-    UpdatedAt,
-}}
+use rustbasic_core::Schema;
 
 #[derive(Iden)]
 pub struct Migration;
@@ -223,40 +209,16 @@ impl MigrationName for Migration {{
 #[async_trait]
 impl MigrationTrait for Migration {{
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {{
-        manager
-            .create_table(
-                Table::create()
-                    .table({table_iden}::Table)
-                    .if_not_exists()
-                    .col(
-                        ColumnDef::new({table_iden}::Id)
-                            .integer()
-                            .not_null()
-                            .auto_increment()
-                            .primary_key(),
-                    )
-                    .col(
-                        ColumnDef::new({table_iden}::CreatedAt)
-                            .date_time()
-                            .default(Expr::current_timestamp()),
-                    )
-                    .col(
-                        ColumnDef::new({table_iden}::UpdatedAt)
-                            .date_time()
-                            .default(Expr::current_timestamp()),
-                    )
-                    .to_owned(),
-            )
-            .await
+        Schema::create(manager, "{table_name}", |_table| {{
+            // table.string("title").not_null();
+        }}).await
     }}
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {{
-        manager
-            .drop_table(Table::drop().table({table_iden}::Table).to_owned())
-            .await
+        Schema::drop(manager, "{table_name}").await
     }}
 }}
-"#, table_iden = table_iden, mod_name = mod_name);
+"#, table_name = table_name, mod_name = mod_name);
 
     fs::write(&file_path, template).expect("Gagal membuat file migration");
     println!("{} {}", "✅ Migration Rust dibuat:".green(), file_path.cyan());
@@ -272,18 +234,10 @@ pub fn make_rust_migration_add(column: &str, table: &str) {
     let mod_name = format!("m{}_{}", timestamp, name);
     let file_path = format!("database/migrations/{}.rs", mod_name);
 
-    let col_pascal = to_pascal_case(column);
-    let table_pascal = to_pascal_case(table);
-
     let template = format!(
 r#"use rustbasic_core::sea_orm_migration::prelude::*;
 use rustbasic_core::async_trait;
-
-#[derive(Iden)]
-enum {table_pascal} {{
-    Table,
-    {col_pascal},
-}}
+use rustbasic_core::Schema;
 
 #[derive(Iden)]
 pub struct Migration;
@@ -297,28 +251,18 @@ impl MigrationName for Migration {{
 #[async_trait]
 impl MigrationTrait for Migration {{
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {{
-        manager
-            .alter_table(
-                Table::alter()
-                    .table({table_pascal}::Table)
-                    .add_column(ColumnDef::new({table_pascal}::{col_pascal}).string())
-                    .to_owned(),
-            )
-            .await
+        Schema::table(manager, "{table_snake}", |table| {{
+            table.string("{col_snake}").nullable();
+        }}).await
     }}
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {{
-        manager
-            .alter_table(
-                Table::alter()
-                    .table({table_pascal}::Table)
-                    .drop_column({table_pascal}::{col_pascal})
-                    .to_owned(),
-            )
-            .await
+        Schema::table(manager, "{table_snake}", |table| {{
+            table.drop_column("{col_snake}");
+        }}).await
     }}
 }}
-"#, table_pascal = table_pascal, col_pascal = col_pascal, mod_name = mod_name);
+"#, table_snake = table_snake, col_snake = col_snake, mod_name = mod_name);
 
     fs::write(&file_path, template).expect("Gagal membuat file migration");
     println!("{} {}", "✅ Migration Add dibuat:".green(), file_path.cyan());
@@ -365,31 +309,26 @@ pub fn make_seeder(name: &str) {
     }
 
     let template = format!(
-r#"#[allow(unused_imports)]
-use rustbasic_core::sea_orm::{{DatabaseConnection, Set, ActiveModelTrait}};
+r#"use rustbasic_core::seeder;
 use rustbasic_core::colored::Colorize;
-use rustbasic_core::seeder::SeederTrait;
-// use crate::app::models::{snake_name}; // Sesuaikan dengan model Anda
+// use crate::app::models::{pascal_name}; // Sesuaikan dengan nama model/struct Entity Anda
 
-pub struct {class_name};
-
-#[rustbasic_core::async_trait]
-impl SeederTrait for {class_name} {{
-    async fn run(&self, _db: &DatabaseConnection) -> Result<(), rustbasic_core::sea_orm::DbErr> {{
+seeder! {{
+    {class_name},
+    run(_db) {{
         println!("   {{}} Sedang memproses {class_name}...", "⏳".blue());
         
-        // Contoh:
+        // Contoh Penggunaan:
         /*
-        let _ = {snake_name}::ActiveModel {{
-            name: Set("Example Data".to_owned()),
-            ..Default::default()
-        }}.insert(_db).await?;
+        {pascal_name}::create(_db, rustbasic_core::serde_json::json!({{
+            "name": "Example Data",
+        }})).await?;
         */
 
         Ok(())
     }}
 }}
-"#, class_name = class_name, snake_name = snake_name);
+"#, class_name = class_name, pascal_name = pascal_name);
 
     fs::write(&file_path, template).expect("Gagal membuat file seeder");
     println!("{} {}", "✅ Seeder dibuat:".green(), file_path.cyan());
