@@ -186,6 +186,42 @@ fn main() {
 
         match command {
             "serve" => {
+                if std::path::Path::new("package.json").exists() {
+                    if !std::path::Path::new("node_modules").exists() {
+                        println!("\n📦 {}...", "node_modules tidak ditemukan. Menjalankan npm install".cyan().bold());
+                        match std::process::Command::new("npm").arg("install").status() {
+                            Ok(status) => {
+                                if !status.success() {
+                                    println!("{}", "❌ Error: npm install gagal.".red().bold());
+                                    std::process::exit(status.code().unwrap_or(1));
+                                }
+                            }
+                            Err(e) => {
+                                println!("{}", "❌ Error: Gagal mengeksekusi 'npm install'. Pastikan Node.js & npm terinstal.".red().bold());
+                                println!("   Detail: {}", e);
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+
+                    if !std::path::Path::new("dist").exists() {
+                        println!("\n📦 {}...", "dist tidak ditemukan. Menjalankan npm run build".cyan().bold());
+                        match std::process::Command::new("npm").args(["run", "build"]).status() {
+                            Ok(status) => {
+                                if !status.success() {
+                                    println!("{}", "❌ Error: npm run build gagal.".red().bold());
+                                    std::process::exit(status.code().unwrap_or(1));
+                                }
+                            }
+                            Err(e) => {
+                                println!("{}", "❌ Error: Gagal mengeksekusi 'npm run build'.".red().bold());
+                                println!("   Detail: {}", e);
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+                }
+
                 let has_watch = std::process::Command::new("cargo")
                     .args(["watch", "--version"])
                     .output()
