@@ -82,6 +82,45 @@ fn main() {
             scaffolding::make_seeder(&args[2]);
             return;
         }
+        "make:test" => {
+            if args.len() < 3 {
+                println!("{}", "❌ Error: Nama test tidak ditentukan.".red().bold());
+                return;
+            }
+            let is_unit = args.contains(&"--unit".to_string());
+            scaffolding::make_test(&args[2], is_unit);
+            return;
+        }
+        "make:observer" => {
+            if args.len() < 3 {
+                println!("{}", "❌ Error: Nama observer tidak ditentukan.".red().bold());
+                return;
+            }
+            let model_arg = args.iter().find(|a| a.starts_with("--model="));
+            let model_name = model_arg.map(|a| a.trim_start_matches("--model=").to_string());
+            scaffolding::make_observer(&args[2], model_name.as_deref());
+            return;
+        }
+        "make:service" => {
+            if args.len() < 3 {
+                println!("{}", "❌ Error: Nama service tidak ditentukan.".red().bold());
+                return;
+            }
+            scaffolding::make_service(&args[2]);
+            return;
+        }
+        "test" => {
+            println!("\n{} {}", "🧪".bold(), "Menjalankan unit/integration testing RustBasic...".magenta().bold());
+            let status = std::process::Command::new("cargo")
+                .arg("test")
+                .status()
+                .expect("❌ Gagal menjalankan cargo test.");
+            
+            if !status.success() {
+                std::process::exit(status.code().unwrap_or(1));
+            }
+            return;
+        }
         "route:list" => {
             monitoring::list_routes();
             return;
@@ -107,6 +146,33 @@ fn main() {
         }
         "new" => {
             run_new_command(&args);
+            return;
+        }
+        "install" => {
+            if args.len() < 3 {
+                println!("{}", "❌ Error: Nama package tidak ditentukan.".red().bold());
+                println!("   Penggunaan: {} {} {}", "rustbasic".blue(), "install".green(), "<nama-package>".cyan());
+                return;
+            }
+            rustbasic_cli::packages::install_package(&args[2]);
+            return;
+        }
+        "uninstall" => {
+            if args.len() < 3 {
+                println!("{}", "❌ Error: Nama package tidak ditentukan.".red().bold());
+                println!("   Penggunaan: {} {} {}", "rustbasic".blue(), "uninstall".green(), "<nama-package>".cyan());
+                return;
+            }
+            rustbasic_cli::packages::uninstall_package(&args[2]);
+            return;
+        }
+        "list" => {
+            if args.len() >= 3 && args[2] == "packages" {
+                rustbasic_cli::packages::list_packages();
+            } else {
+                println!("{}", "❌ Error: Subcommand tidak dikenal.".red().bold());
+                println!("   Penggunaan: {} {} {}", "rustbasic".blue(), "list".green(), "packages".cyan());
+            }
             return;
         }
         _ => {}
@@ -275,6 +341,7 @@ fn print_help() {
     println!("{}", "Penggunaan:".bold());
     println!("  {} {} <Nama>         {}", "rustbasic".blue(), "new".green(), "Membuat project RustBasic baru".dimmed());
     println!("  {} {}                 {}", "rustbasic".blue(), "serve".green(), "Menjalankan server pengembangan (Auto-Reload/Fallback)".dimmed());
+    println!("  {} {}                 {}", "rustbasic".blue(), "test".green(), "Menjalankan unit/integration testing proyek".dimmed());
     println!("  {} {}                 {}", "rustbasic".blue(), "build".green(), "Membangun project RustBasic".dimmed());
     
     println!("\n{}", "Database & Migrasi:".bold());
@@ -290,6 +357,9 @@ fn print_help() {
     println!("  {} {} <Kolom> <Tabel> {}", "rustbasic".blue(), "make:migration:add".green(), "Membuat file migrasi tambah kolom baru".dimmed());
     println!("  {} {} <Nama>     {}", "rustbasic".blue(), "make:middleware".green(), "Membuat middleware baru".dimmed());
     println!("  {} {} <Nama>       {}", "rustbasic".blue(), "make:seeder".green(), "Membuat seeder baru".dimmed());
+    println!("  {} {} <Nama> [--unit] {}", "rustbasic".blue(), "make:test".green(), "Membuat unit/feature test baru".dimmed());
+    println!("  {} {} <Nama> [--model=<Model>] {}", "rustbasic".blue(), "make:observer".green(), "Membuat observer baru".dimmed());
+    println!("  {} {} <Nama>          {}", "rustbasic".blue(), "make:service".green(), "Membuat service baru".dimmed());
 
     println!("\n{}", "Utilitas & Monitoring:".bold());
     println!("  {} {}          {}", "rustbasic".blue(), "key:generate".green(), "Membuat application key (APP_KEY) baru".dimmed());
@@ -299,6 +369,14 @@ fn print_help() {
     println!("  {} {}        {}", "rustbasic".blue(), "check:security".green(), "Melakukan audit keamanan dependency".dimmed());
     println!("  {} {}          {}", "rustbasic".blue(), "check:update".green(), "Memeriksa pembaruan dependency di crates.io".dimmed());
     println!("  {} {}               {}", "rustbasic".blue(), "version".green(), "Menampilkan versi RustBasic CLI".dimmed());
+
+    println!("\n{}", "Package Manager:".bold());
+    println!("  {} {} <Package>     {}", "rustbasic".blue(), "install".green(), "Install package RustBasic ke project".dimmed());
+    println!("  {} {}    {}", "rustbasic".blue(), "list packages".green(), "Tampilkan daftar package yang terinstall".dimmed());
+    println!("  {} {} <Package>   {}", "rustbasic".blue(), "uninstall".green(), "Hapus package beserta file konfigurasinya".dimmed());
+
+    println!("\n{}", "Package tersedia:".bold());
+    println!("  {}  {}", "rustbasic-breeze".cyan(), "→ Authentication scaffolding (login, register, reset password)".dimmed());
     
     println!("\n💡 Gunakan 'rustbasic version' untuk melihat informasi versi saat ini.");
 }

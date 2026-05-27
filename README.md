@@ -1,62 +1,75 @@
-# 🚀 RustBasic CLI
+# 🛠️ RustBasic CLI
 
-**RustBasic CLI** is the high-performance command-line interface for the [RustBasic Framework](https://github.com/herisvan321/rustbasic). It is designed to be blazing fast, modular, and extremely easy to use.
+## 📝 Kata Pengantar
 
-## ✨ Features
+Selamat datang di **RustBasic CLI**. Perkakas baris perintah (Command-Line Interface) ini dirancang khusus untuk mempermudah dan mempercepat alur kerja pengembangan aplikasi menggunakan **RustBasic Framework**. Dengan memanfaatkan biner global yang memiliki waktu startup ultra-cepat (sekitar 0.008 detik), RustBasic CLI mengotomatisasi pembuatan berkas kode boilerplate, pengelolaan migrasi database relasional, symbolic links direktori penyimpanan, serta audit keamanan dan performa proyek Anda secara instan di terminal.
 
-- **On-Demand Runtime**: Utility commands start in **~0.008s** by bypassing the async runtime when not needed.
-- **Magic Scaffolding**: Generate models, controllers, and migrations with a single command.
-- **Seamless Delegation**: Run database migrations and seeders that automatically use your project's local code.
-- **Build Manager**: Cross-compile your project for Windows, Linux, and macOS with ease.
-- **Security Checkup**: Automated security audits for your RustBasic applications.
+---
 
-## 📦 Installation
+## 🛠️ Script Contoh
 
-To install the CLI globally on your system:
-
+### A. Cara Menginstal CLI Secara Global
 ```bash
+# Menginstal biner global menggunakan Cargo
 cargo install rustbasic-cli
+
+# Memverifikasi instalasi berhasil
+rustbasic version
 ```
 
-*Note: Requires Rust and Cargo to be installed. If you prefer building from source:*
-
+### B. Membuat Proyek SPA Baru & Menjalankan Server Pengembangan
 ```bash
-git clone https://github.com/herisvan321/rustbasic-cli
-cd rustbasic-cli
-cargo install --path .
+# 1. Membuat direktori proyek baru dari template resmi
+rustbasic new my-new-spa-project
+
+# 2. Masuk ke folder proyek
+cd my-new-spa-project
+
+# 3. Jalankan server pengembangan lokal (Hot Reload otomatis)
+rustbasic serve
 ```
 
-## 🛠️ Usage
+### C. Menghasilkan Berkas Kontroller & Model Database Baru
+```bash
+# Membuat file controller baru di src/app/http/controllers/
+rustbasic make:controller ArticleController
 
-### Project Management
-- `rustbasic new <project_name>`: Create a new RustBasic project from the official template.
-- `rustbasic serve`: Start the development server with auto-reload (using `cargo-watch`).
+# Membuat file model beserta file migrasi database baru secara bersamaan (-m)
+rustbasic make:model Product -m
+```
 
-### Scaffolding (Generators)
-- `rustbasic make:controller <Name>`: Create a new controller.
-- `rustbasic make:model <Name>`: Create a new model and its corresponding migration.
-- `rustbasic make:migration <name>`: Create a new database migration file (standard/create).
-- `rustbasic make:migration:add <column> <table>`: Create a new migration to add a column.
-- `rustbasic make:auth`: Scaffold a complete authentication system (Login, Register, Dashboard).
+---
 
-### Database & Storage
-- `rustbasic migrate`: Run pending migrations.
-- `rustbasic migrate:refresh`: Rollback and re-run all migrations.
-- `rustbasic migrate:rollback`: Rollback the last migration batch.
-- `rustbasic db:seed`: Seed the database with initial data.
-- `rustbasic storage:link`: Create a symbolic link from `public/storage` to `storage/app/public` to make uploaded files accessible via URL.
+## 🔄 Perbandingan Pemakaian (Pintasan CLI vs Operasi Manual)
 
-### Utilities
-- `rustbasic key:generate`: Generate a new `APP_KEY` for your `.env` file.
-- `rustbasic route:list`: List all registered routes in your application.
-- `rustbasic check:security`: Run a security health check on your project.
-- `rustbasic build`: Interactive project build manager.
-- `rustbasic version`: Display the current CLI version.
+Berikut adalah tabel perbandingan pemakaian antara menggunakan pintasan otomatis RustBasic CLI dan menulis kode secara manual:
 
-## 🤝 Contributing
+| Kriteria Pekerjaan | Operasi Kode Manual | Menggunakan Pintasan RustBasic CLI |
+| :--- | :--- | :--- |
+| **Waktu Pembuatan File** | Lambat, harus membuat file baru & menyalin struktur dasar. | Instan, file boilerplate tergenerasi rapi dalam hitungan milidetik. |
+| **Pendaftaran Migrasi** | Harus mendesain file migrasi & mendaftarkannya secara manual. | Otomatis dibuat dengan nama ter-timestamp yang siap diisi skema. |
+| **Menampilkan Rute Web** | Harus membaca file routing satu per satu untuk audit URL. | Cukup jalankan perintah, seluruh URL dan middleware tercetak rapi. |
+| **Kecepatan Startup CLI** | Lambat jika memicu async runtime penuh untuk utilitas kecil. | Sangat instan (~0.008s) karena mem-bypass runtime async runtime. |
 
-Contributions are welcome! Feel free to open issues or submit pull requests to improve the CLI.
+---
 
-## 📄 License
+## 📊 Tabel Ringkasan Daftar Perintah CLI Lengkap
 
-This project is licensed under the MIT License.
+Berikut adalah tabel perintah penting yang disediakan oleh RustBasic CLI:
+
+| Perintah Terminal | Deskripsi Singkat Kegunaan Perintah | Output / Hasil Eksekusi |
+| :--- | :--- | :--- |
+| **`new <name>`** | Menginisiasi proyek baru dari template dasar. | Struktur folder proyek lengkap tergenerasi. |
+| **`serve`** | Menjalankan server lokal RustBasic dengan watcher. | Server berjalan di port 4000 dengan Hot-Reload. |
+| **`make:controller <Name>`**| Membuat template file kontroller baru. | File controller baru siap pakai di direktori controller. |
+| **`make:model <Name> -m`** | Membuat model database beserta migrasinya. | Model di `src/app/models/` & berkas migrasi baru terbuat. |
+| **`migrate`** | Menjalankan migrasi database yang tertunda. | Skema tabel database ter-update ke versi terbaru. |
+| **`db:seed`** | Menjalankan pengisian data awal database (seeder). | Tabel database terisi data dummy awal otomatis. |
+| **`route:list`** | Menampilkan seluruh daftar rute URL yang terdaftar. | Tabel rute & middleware tercetak di layar terminal. |
+| **`key:generate`** | Menghasilkan kunci enkripsi aplikasi baru. | Kunci enkripsi acak tersimpan otomatis pada berkas `.env`. |
+
+---
+
+## 🏁 Penutup
+
+Perkakas **RustBasic CLI** dirancang untuk menghilangkan kejenuhan menulis kode boilerplate secara manual, menyelaraskan konfigurasi database, dan mengoptimalkan siklus hidup pengembangan aplikasi Anda. Dengan menguasai perintah-perintah CLI ini, Anda dapat menghemat waktu berharga dan fokus sepenuhnya pada pembangunan logika bisnis utama aplikasi web Anda.

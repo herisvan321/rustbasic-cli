@@ -23,7 +23,7 @@ r#"/* ---------------------------------------------------------
 
 use crate::app::inertia::inertia;
 use rustbasic_core::requests::Request;
-use rustbasic_core::axum::response::Response;
+use rustbasic_core::router::Response;
 use rustbasic_core::serde_json::json;
 
 pub struct {class_name};
@@ -80,11 +80,9 @@ r#"/* ---------------------------------------------------------
  * 📑 LABEL: {label} (middleware/{file_name})
  * --------------------------------------------------------- */
 
-use rustbasic_core::axum::{{
-    extract::Request,
-    middleware::Next,
-    response::Response,
-}};
+use rustbasic_core::middleware::Next;
+use rustbasic_core::requests::Request;
+use rustbasic_core::router::Response;
 
 pub async fn {fn_name}(
     req: Request,
@@ -139,13 +137,12 @@ pub fn make_model(name: &str) {
 
     let template = format!(
 r#"use rustbasic_core::model;
-use rustbasic_core::sea_orm::entity::prelude::*;
 
 model! {{
     table: "{table_name}",
     Model {{
-        #[sea_orm(primary_key)]
         pub id: i32,
+        // tambahkan field lainnya di sini
     }}
 }}
 "#, table_name = table_name);
@@ -156,7 +153,7 @@ model! {{
     update_mod_rs(&to_pascal_case(name), &snake_name);
 }
 
-pub fn update_mod_rs(class_name: &str, snake_name: &str) {
+pub fn update_mod_rs(_class_name: &str, snake_name: &str) {
     let mod_path = "src/app/models/mod.rs";
     let mut content = String::new();
     if let Ok(mut file) = fs::File::open(mod_path) {
@@ -174,7 +171,7 @@ pub fn update_mod_rs(class_name: &str, snake_name: &str) {
         .expect("Gagal membuka models/mod.rs");
 
     writeln!(file, "{}", mod_line).ok();
-    writeln!(file, "pub use {}::Entity as {};", snake_name, class_name).ok();
+    // Tidak ada lagi pub use Entity karena model! macro sudah menggenerate type alias
     
     println!("{} {}", "📝".blue(), "models/mod.rs diperbarui.".dimmed());
 }
@@ -193,28 +190,26 @@ pub fn make_rust_migration(name: &str) {
     let table_name = if snake_name.ends_with('s') { snake_name.clone() } else { format!("{}s", snake_name) };
 
     let template = format!(
-r#"use rustbasic_core::sea_orm_migration::prelude::*;
+r#"use rustbasic_core::{{Schema, SchemaManager, MigrationTrait, DbErr}};
 use rustbasic_core::async_trait;
-use rustbasic_core::Schema;
 
-#[derive(Iden)]
 pub struct Migration;
-
-impl MigrationName for Migration {{
-    fn name(&self) -> &str {{
-        "{mod_name}"
-    }}
-}}
 
 #[async_trait]
 impl MigrationTrait for Migration {{
-    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {{
-        Schema::create(manager, "{table_name}", |_table| {{
+    fn name(&self) -> &str {{
+        "{mod_name}"
+    }}
+
+    async fn up<'a>(&self, manager: &'a SchemaManager<'a>) -> Result<(), DbErr> {{
+        Schema::create(manager, "{table_name}", |table| {{
+            table.id();
             // table.string("title").not_null();
+            table.timestamps();
         }}).await
     }}
 
-    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {{
+    async fn down<'a>(&self, manager: &'a SchemaManager<'a>) -> Result<(), DbErr> {{
         Schema::drop(manager, "{table_name}").await
     }}
 }}
@@ -235,28 +230,24 @@ pub fn make_rust_migration_add(column: &str, table: &str) {
     let file_path = format!("database/migrations/{}.rs", mod_name);
 
     let template = format!(
-r#"use rustbasic_core::sea_orm_migration::prelude::*;
+r#"use rustbasic_core::{{Schema, SchemaManager, MigrationTrait, DbErr}};
 use rustbasic_core::async_trait;
-use rustbasic_core::Schema;
 
-#[derive(Iden)]
 pub struct Migration;
-
-impl MigrationName for Migration {{
-    fn name(&self) -> &str {{
-        "{mod_name}"
-    }}
-}}
 
 #[async_trait]
 impl MigrationTrait for Migration {{
-    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {{
+    fn name(&self) -> &str {{
+        "{mod_name}"
+    }}
+
+    async fn up<'a>(&self, manager: &'a SchemaManager<'a>) -> Result<(), DbErr> {{
         Schema::table(manager, "{table_snake}", |table| {{
             table.string("{col_snake}").nullable();
         }}).await
     }}
 
-    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {{
+    async fn down<'a>(&self, manager: &'a SchemaManager<'a>) -> Result<(), DbErr> {{
         Schema::table(manager, "{table_snake}", |table| {{
             table.drop_column("{col_snake}");
         }}).await
@@ -285,11 +276,17 @@ pub fn update_migration_mod_rs(mod_name: &str) {
         content.push_str(&format!("pub mod {};\n", mod_name));
     }
 
-    // Tambahkan ke list migrations
-    let search_pattern = "fn migrations() -> Vec<Box<dyn MigrationTrait>> {";
-    if let Some(_pos) = content.find(search_pattern) {
-        let insert_pos = content.find("        ]").unwrap_or(content.len());
-        content.insert_str(insert_pos, &format!("            Box::new({}::Migration),\n", mod_name));
+    // Tambahkan ke list migrations (pattern baru MigratorTrait)
+    let search_patterns = [
+        "fn migrations() -> Vec<Box<dyn MigrationTrait>> {",
+        "fn migrations()->Vec<Box<dyn MigrationTrait>>{",
+    ];
+    for pattern in &search_patterns {
+        if let Some(_pos) = content.find(pattern) {
+            let insert_pos = content.find("        ]").unwrap_or(content.len());
+            content.insert_str(insert_pos, &format!("            Box::new({}::Migration),\n", mod_name));
+            break;
+        }
     }
 
     fs::write(mod_path, content).expect("Gagal memperbarui database/migrations/mod.rs");
@@ -358,3 +355,250 @@ pub fn update_seeder_mod_rs(class_name: &str, mod_name: &str) {
     
     println!("{} {}", "📝".blue(), "Pengaturan seeder diperbarui.".dimmed());
 }
+
+pub fn make_test(name: &str, is_unit: bool) {
+    let pascal_name = to_pascal_case(name).replace("Test", "");
+    let snake_name = to_snake_case(&pascal_name);
+    let prefix = if is_unit { "unit" } else { "feature" };
+    let file_name = format!("{}_{}_test.rs", prefix, snake_name);
+    let file_path = format!("tests/{}", file_name);
+
+    if !std::path::Path::new("tests").exists() {
+        fs::create_dir_all("tests").expect("Gagal membuat folder tests");
+    }
+
+    if std::path::Path::new(&file_path).exists() {
+        println!("{} {} {}", "⚠️  Test".yellow(), file_path.cyan(), "sudah ada.".yellow());
+        return;
+    }
+
+    let template = if is_unit {
+        format!(
+r#"/* ---------------------------------------------------------
+ * 🧪 UNIT TEST: {pascal_name} (tests/{file_name})
+ * --------------------------------------------------------- */
+
+#[test]
+fn test_{snake_name}_logic() {{
+    // Contoh asersi sederhana
+    let expected = 42;
+    let actual = 40 + 2;
+    
+    assert_eq!(expected, actual, "Fungsi kalkulasi tidak sesuai");
+}}
+"#, pascal_name = pascal_name, file_name = file_name, snake_name = snake_name)
+    } else {
+        format!(
+r#"/* ---------------------------------------------------------
+ * 🧪 FEATURE TEST: {pascal_name} (tests/{file_name})
+ * --------------------------------------------------------- */
+
+use rustbasic_core::testing::TestClient;
+use rustbasic_core::Config;
+
+#[tokio::test]
+async fn test_{snake_name}_page() {{
+    // 1. Muat konfigurasi
+    let cfg = Config::load();
+    
+    // 2. Bangun router aplikasi
+    let router = rustbasic::routes::build_router();
+    
+    // 3. Setup TestClient in-memory
+    let client = TestClient::new(cfg, router).await;
+    
+    // 4. Kirim request ke endpoint (misalnya '/')
+    let response = client.get("/").await;
+    
+    // 5. Asersi response status & konten
+    response.assert_status(200);
+}}
+"#, pascal_name = pascal_name, file_name = file_name, snake_name = snake_name)
+    };
+
+    fs::write(&file_path, template).expect("Gagal membuat file test");
+    println!("{} {}", "✅ Test dibuat:".green(), file_path.cyan());
+}
+
+pub fn make_observer(name: &str, model_name: Option<&str>) {
+    let pascal_name = to_pascal_case(name).replace("Observer", "");
+    let snake_name = to_snake_case(&pascal_name);
+    let class_name = format!("{}Observer", pascal_name);
+    let file_name = format!("{}_observer.rs", snake_name);
+    
+    // Ensure src/app/observers/ directory exists
+    let dir_path = "src/app/observers";
+    fs::create_dir_all(dir_path).expect("Gagal membuat folder observers");
+    
+    let file_path = format!("{}/{}", dir_path, file_name);
+
+    if std::path::Path::new(&file_path).exists() {
+        println!("{} {} {}", "⚠️  Observer".yellow(), file_path.cyan(), "sudah ada.".yellow());
+        return;
+    }
+
+    let model_pascal = model_name.map(to_pascal_case).unwrap_or_else(|| pascal_name.clone());
+    let mut model_snake = to_snake_case(&model_pascal);
+    if !std::path::Path::new(&format!("src/app/models/{}.rs", model_snake)).exists()
+        && std::path::Path::new(&format!("src/app/models/{}s.rs", model_snake)).exists() {
+        model_snake = format!("{}s", model_snake);
+    }
+
+    let template = format!(
+r#"/* ---------------------------------------------------------
+ * 📑 LABEL: {class_name} (observers/{file_name})
+ * --------------------------------------------------------- */
+
+use crate::app::models::{model_snake}::Model as {model_pascal};
+use rustbasic_core::serde_json::Value;
+
+pub trait {class_name} {{
+    fn creating(data: &mut Value);
+    fn created(model: &{model_pascal});
+    fn updating(data: &mut Value);
+    fn updated(model: &{model_pascal});
+    fn deleting(id: i32);
+    fn deleted(id: i32);
+}}
+
+pub struct {class_name}Impl;
+
+impl {class_name} for {class_name}Impl {{
+    fn creating(_data: &mut Value) {{
+        // Lakukan sesuatu sebelum data disimpan ke database (Before Create)
+    }}
+
+    fn created(_model: &{model_pascal}) {{
+        // Lakukan sesuatu setelah data berhasil disimpan ke database (After Create)
+    }}
+
+    fn updating(_data: &mut Value) {{
+        // Lakukan sesuatu sebelum data diupdate di database (Before Update)
+    }}
+
+    fn updated(_model: &{model_pascal}) {{
+        // Lakukan sesuatu setelah data berhasil diupdate di database (After Update)
+    }}
+
+    fn deleting(_id: i32) {{
+        // Lakukan sesuatu sebelum data dihapus dari database (Before Delete)
+    }}
+
+    fn deleted(_id: i32) {{
+        // Lakukan sesuatu setelah data berhasil dihapus dari database (After Delete)
+    }}
+}}
+"#, class_name = class_name, file_name = file_name, model_pascal = model_pascal, model_snake = model_snake);
+
+    fs::write(&file_path, template).expect("Gagal membuat file observer");
+    println!("{} {}", "✅ Observer dibuat:".green(), file_path.cyan());
+
+    update_observer_mod_rs(&snake_name);
+}
+
+pub fn update_observer_mod_rs(mod_name: &str) {
+    let mod_path = "src/app/observers/mod.rs";
+    let mut content = String::new();
+    if let Ok(mut file) = fs::File::open(mod_path) {
+        file.read_to_string(&mut content).ok();
+    }
+
+    let line = format!("pub mod {}_observer;", mod_name);
+    if !content.contains(&line) {
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(mod_path)
+            .expect("Gagal membuka observers/mod.rs");
+        writeln!(file, "{}", line).ok();
+        println!("{} {}", "📝".blue(), "observers/mod.rs diperbarui.".dimmed());
+    }
+
+    // Register observers module in src/app/mod.rs if not already present
+    let app_mod_path = "src/app/mod.rs";
+    if let Ok(content) = fs::read_to_string(app_mod_path)
+        && !content.contains("pub mod observers;") {
+        let mut file = OpenOptions::new()
+            .append(true)
+            .open(app_mod_path)
+            .expect("Gagal membuka app/mod.rs");
+        writeln!(file, "pub mod observers;").ok();
+        println!("{} {}", "📝".blue(), "app/mod.rs diperbarui.".dimmed());
+    }
+}
+
+pub fn make_service(name: &str) {
+    let pascal_name = to_pascal_case(name).replace("Service", "");
+    let snake_name = to_snake_case(&pascal_name);
+    let class_name = format!("{}Service", pascal_name);
+    let file_name = format!("{}_service.rs", snake_name);
+    
+    // Ensure src/app/services/ directory exists
+    let dir_path = "src/app/services";
+    fs::create_dir_all(dir_path).expect("Gagal membuat folder services");
+    
+    let file_path = format!("{}/{}", dir_path, file_name);
+
+    if std::path::Path::new(&file_path).exists() {
+        println!("{} {} {}", "⚠️  Service".yellow(), file_path.cyan(), "sudah ada.".yellow());
+        return;
+    }
+
+    let template = format!(
+r#"/* ---------------------------------------------------------
+ * 📑 LABEL: {class_name} (services/{file_name})
+ * --------------------------------------------------------- */
+
+use rustbasic_core::sqlx::AnyPool;
+
+pub struct {class_name} {{
+    _db: AnyPool,
+}}
+
+impl {class_name} {{
+    pub fn new(db: AnyPool) -> Self {{
+        Self {{ _db: db }}
+    }}
+
+    // Tambahkan fungsi logika bisnis Anda di sini
+}}
+"#, class_name = class_name, file_name = file_name);
+
+    fs::write(&file_path, template).expect("Gagal membuat file service");
+    println!("{} {}", "✅ Service dibuat:".green(), file_path.cyan());
+
+    update_service_mod_rs(&snake_name);
+}
+
+pub fn update_service_mod_rs(mod_name: &str) {
+    let mod_path = "src/app/services/mod.rs";
+    let mut content = String::new();
+    if let Ok(mut file) = fs::File::open(mod_path) {
+        file.read_to_string(&mut content).ok();
+    }
+
+    let line = format!("pub mod {}_service;", mod_name);
+    if !content.contains(&line) {
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(mod_path)
+            .expect("Gagal membuka services/mod.rs");
+        writeln!(file, "{}", line).ok();
+        println!("{} {}", "📝".blue(), "services/mod.rs diperbarui.".dimmed());
+    }
+
+    // Register services module in src/app/mod.rs if not already present
+    let app_mod_path = "src/app/mod.rs";
+    if let Ok(content) = fs::read_to_string(app_mod_path)
+        && !content.contains("pub mod services;") {
+        let mut file = OpenOptions::new()
+            .append(true)
+            .open(app_mod_path)
+            .expect("Gagal membuka app/mod.rs");
+        writeln!(file, "pub mod services;").ok();
+        println!("{} {}", "📝".blue(), "app/mod.rs diperbarui.".dimmed());
+    }
+}
+
+

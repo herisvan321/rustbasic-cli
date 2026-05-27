@@ -3,6 +3,7 @@ pub mod database;
 pub mod monitoring;
 pub mod builder;
 pub mod utils;
+pub mod packages;
 pub use scaffolding::*;
 pub use database::*;
 pub use monitoring::*;
@@ -61,7 +62,7 @@ pub fn print_help() {
 }
 
 /// Fungsi utama untuk menangani CLI di tingkat project (dipanggil oleh project main.rs)
-pub async fn handle<M: sea_orm_migration::MigratorTrait>(args: &[String]) -> bool {
+pub async fn handle<M: rustbasic_core::MigratorTrait + Send + Sync + 'static>(args: &[String]) -> bool {
     if args.len() < 2 {
         return false;
     }
