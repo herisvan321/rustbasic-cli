@@ -25,7 +25,7 @@ struct PackageInfo {
 fn known_packages(name: &str) -> Option<PackageInfo> {
     match name {
         "rustbasic-breeze" => Some(PackageInfo {
-            version: "0.0.8",
+            version: "0.0",
             description: "Authentication scaffolding (login, register, reset password)",
             setup_command: Some("breeze:install"),
             remove_command: Some("breeze:remove"),
