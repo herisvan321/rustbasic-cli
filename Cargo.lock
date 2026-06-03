@@ -1611,7 +1611,7 @@ dependencies = [
 
 [[package]]
 name = "rustbasic-cli"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "base64",
  "chrono",
@@ -1628,9 +1628,9 @@ dependencies = [
 
 [[package]]
 name = "rustbasic-core"
-version = "0.1.19"
+version = "0.1.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8de988261260e9551419e9f386d9d2788ec980705d8fa38fd95efc7d38d4da49"
+checksum = "0f63eecc12a1d1aaa4537b71977ade15f4c0678c74df11a740ca97f1cd89998a"
 dependencies = [
  "bcrypt",
  "chrono",

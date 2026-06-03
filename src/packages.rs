@@ -98,7 +98,7 @@ fn cargo_add_package(name: &str, version: &str) -> bool {
         return true; // sudah ada
     }
 
-    let dep_line = format!("{} = {{ version = \"{}\" }}\n", name, version);
+    let dep_line = format!("{} = {{ path = \"../{}\", version = \"{}\" }}\n", name, name, version);
 
     // Sisipkan setelah [dependencies]
     if let Some(pos) = content.find("[dependencies]") {

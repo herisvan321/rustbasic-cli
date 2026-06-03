@@ -171,7 +171,7 @@ pub async fn ensure_session() {
     let create_table_sql = if cfg.db_connection == "mysql" {
         "CREATE TABLE IF NOT EXISTS sessions (
             id VARCHAR(255) PRIMARY KEY,
-            payload TEXT NOT NULL,
+            payload VARCHAR(8000) NOT NULL,
             last_activity BIGINT NOT NULL,
             ip_address VARCHAR(45)
         )"
