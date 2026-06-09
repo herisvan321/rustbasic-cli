@@ -204,8 +204,8 @@ fn main() {
                         }
                     }
 
-                    if !std::path::Path::new("dist").exists() {
-                        println!("\n📦 {}...", "dist tidak ditemukan. Menjalankan npm run build".cyan().bold());
+                    if !std::path::Path::new("src/dist").exists() {
+                        println!("\n📦 {}...", "src/dist tidak ditemukan. Menjalankan npm run build".cyan().bold());
                         match std::process::Command::new("npm").args(["run", "build"]).status() {
                             Ok(status) => {
                                 if !status.success() {
