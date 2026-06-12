@@ -48,6 +48,26 @@ fn update_env_app_debug(is_release: bool) {
     }
 }
 
+/// Fungsi untuk mendapatkan port aplikasi dari file .env
+fn get_app_port() -> u16 {
+    let env_path = Path::new(".env");
+    if env_path.exists() {
+        if let Ok(content) = fs::read_to_string(env_path) {
+            for line in content.lines() {
+                let trimmed = line.trim();
+                if trimmed.starts_with("APP_PORT=") {
+                    if let Some(port_str) = trimmed.split('=').nth(1) {
+                        if let Ok(port) = port_str.trim().parse::<u16>() {
+                            return port;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    4000
+}
+
 pub fn build_project() {
     println!("\n{}", "🚀 RustBasic Build Manager".magenta().bold());
     println!("{}", "--------------------------".magenta());
@@ -250,8 +270,64 @@ pub fn build_project() {
             if fs::copy(".env", "deploy/.env").is_ok() {
                 println!("{}", "selesai".green());
             } else {
-            println!("{}", "gagal".red());
+                println!("{}", "gagal".red());
             }
+        }
+
+        // Generate konfigurasi server deployment (.htaccess & nginx.conf)
+        let app_port = get_app_port();
+
+        // 1. Generate .htaccess untuk Apache / Shared Hosting
+        let htaccess_content = format!(
+            r#"<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # 1. Jika meminta file statis yang ada di folder dist, sajikan langsung dari dist/
+    RewriteCond %{{DOCUMENT_ROOT}}/dist/$1 -f
+    RewriteRule ^(.*)$ dist/$1 [L]
+
+    # 2. Jika bukan file statis nyata, teruskan ke binary RustBasic yang berjalan di port {}
+    RewriteCond %{{REQUEST_FILENAME}} !-f
+    RewriteCond %{{REQUEST_FILENAME}} !-d
+    RewriteRule ^(.*)$ http://127.0.0.1:{}/$1 [P,L]
+    
+    RewriteRule ^$ http://127.0.0.1:{}/ [P,L]
+</IfModule>
+"#,
+            app_port, app_port, app_port
+        );
+        if fs::write("deploy/.htaccess", htaccess_content).is_ok() {
+            println!("   {} Menghasilkan file konfigurasi deploy/.htaccess... selesai", "📄".blue());
+        }
+
+        // 2. Generate nginx.conf untuk VPS / Nginx Reverse Proxy
+        let nginx_content = format!(
+            r#"server {{
+    listen 80;
+    server_name domainanda.com;
+
+    # Root diarahkan ke folder deploy
+    root /path/ke/folder/deploy;
+
+    # Coba sajikan file statis dari folder dist jika ada
+    location / {{
+        try_files /dist$uri @rust_backend;
+    }}
+
+    # Teruskan request dinamis ke binary RustBasic yang berjalan di port {}
+    location @rust_backend {{
+        proxy_pass http://127.0.0.1:{};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }}
+}}
+"#,
+            app_port, app_port
+        );
+        if fs::write("deploy/nginx.conf", nginx_content).is_ok() {
+            println!("   {} Menghasilkan file konfigurasi deploy/nginx.conf... selesai", "📄".blue());
         }
 
         // Salin file binary hasil kompilasi

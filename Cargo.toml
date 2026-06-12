@@ -1,6 +1,6 @@
 [package]
 name = "rustbasic-cli"
-version = "0.0.27"
+version = "0.0.29"
 edition = "2024"
 description = "CLI tool for the RustBasic Framework."
 license = "MIT"
@@ -15,7 +15,9 @@ categories = ["development-tools", "command-line-utilities", "web-programming"]
 rustbasic-core = "0.1"
 
 [features]
-default = ["mysql"]
+default = ["sqlite", "mysql"]
+sqlite = ["rustbasic-core/sqlite"]
+sqlite-bundled = ["rustbasic-core/sqlite-bundled"]
 mysql = ["rustbasic-core/mysql"]
 
 [[bin]]
