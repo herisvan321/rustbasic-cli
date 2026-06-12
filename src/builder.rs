@@ -210,7 +210,19 @@ pub fn build_project() {
         }
 
         // Salin folder dist jika ada
-        if Path::new("dist").exists() {
+        let mut dist_copied = false;
+        if Path::new("src/dist").exists() {
+            print!("   {} Menyalin folder src/dist... ", "📦".blue());
+            io::stdout().flush().unwrap();
+            if copy_dir_all("src/dist", "deploy/dist").is_ok() {
+                println!("{}", "selesai".green());
+                dist_copied = true;
+            } else {
+                println!("{}", "gagal".red());
+            }
+        }
+
+        if !dist_copied && Path::new("dist").exists() {
             print!("   {} Menyalin folder dist... ", "📦".blue());
             io::stdout().flush().unwrap();
             if copy_dir_all("dist", "deploy/dist").is_ok() {
