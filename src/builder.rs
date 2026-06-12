@@ -2,7 +2,7 @@ use std::process::Command;
 use std::io::{self, Write};
 use std::fs;
 use std::path::{Path, PathBuf};
-use colored::*;
+use rustbasic_core::colored::*;
 
 /// Fungsi rekursif untuk menyalin seluruh isi folder
 fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
@@ -179,7 +179,7 @@ pub fn build_project() {
     }
 
     println!("{} {:?}", "🚀 Menjalankan:".blue().bold(), cmd);
-    let status = cmd.status().expect("Gagal menjalankan perintah build");
+    let status = crate::utils::run_cargo_with_progress(cmd).expect("Gagal menjalankan perintah build");
 
     if status.success() {
         println!("\n{}", "✅ Build Rust berhasil!".green().bold());

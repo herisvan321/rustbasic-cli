@@ -4,8 +4,9 @@
  * RustBasic menggunakan manifest .rustbasic_packages.json
  * --------------------------------------------------------- */
 
-use colored::*;
-use serde::{Deserialize, Serialize};
+use rustbasic_core::colored::*;
+use rustbasic_core::serde::{Deserialize, Serialize};
+use rustbasic_core::serde_json;
 use std::process::Command;
 
 const MANIFEST_FILE: &str = ".rustbasic_packages.json";
@@ -37,6 +38,7 @@ fn known_packages(name: &str) -> Option<PackageInfo> {
 // ─── Manifest Structs ─────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(crate = "rustbasic_core::serde")]
 pub struct InstalledPackage {
     pub name: String,
     pub version: String,
@@ -46,6 +48,7 @@ pub struct InstalledPackage {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
+#[serde(crate = "rustbasic_core::serde")]
 pub struct PackageManifest {
     pub packages: Vec<InstalledPackage>,
 }
@@ -194,9 +197,9 @@ fn extract_version_from_line(line: &str) -> Option<String> {
 
 fn run_cargo_build() -> bool {
     println!("   {} Mengunduh dan mengkompilasi dependensi...", "📦".bold());
-    let status = Command::new("cargo")
-        .args(["build", "-q"])
-        .status();
+    let mut cmd = Command::new("cargo");
+    cmd.arg("build");
+    let status = crate::utils::run_cargo_with_progress(cmd);
     match status {
         Ok(s) if s.success() => true,
         Ok(s) => {
@@ -242,9 +245,9 @@ async fn main() {
     std::fs::write(&script_path, &script).ok();
 
     println!("   {} Menjalankan setup {}...", "⚙️".bold(), package_name.cyan().bold());
-    let status = Command::new("cargo")
-        .args(["run", "-q", "--bin", "temp_pkg_setup"])
-        .status();
+    let mut cmd = Command::new("cargo");
+    cmd.args(["run", "--bin", "temp_pkg_setup"]);
+    let status = crate::utils::run_cargo_with_progress(cmd);
 
     // Cleanup script
     std::fs::remove_file(&script_path).ok();
@@ -303,7 +306,7 @@ pub fn install_package(name: &str) {
     }
 
     // 6. Catat di manifest
-    let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+    let now = rustbasic_core::chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
     manifest.packages.push(InstalledPackage {
         name: name.to_string(),
         version,
@@ -398,7 +401,9 @@ pub fn uninstall_package(name: &str) {
 
     // 3. cargo build untuk update lock file
     println!("   {} Memperbarui dependencies...", "📦".bold());
-    let _ = Command::new("cargo").args(["build", "-q"]).status();
+    let mut cmd = Command::new("cargo");
+    cmd.arg("build");
+    let _ = crate::utils::run_cargo_with_progress(cmd);
 
     // 4. Hapus dari manifest
     if let Some(idx) = pkg_idx {

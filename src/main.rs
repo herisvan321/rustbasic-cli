@@ -1,6 +1,7 @@
 use std::env;
-use dotenvy::dotenv;
-use colored::*;
+use rustbasic_core::dotenvy::dotenv;
+use rustbasic_core::colored::*;
+use rustbasic_core::tokio;
 use rustbasic_cli::*;
 
 #[allow(clippy::collapsible_if)]
@@ -109,11 +110,24 @@ fn main() {
             scaffolding::make_service(&args[2]);
             return;
         }
+        "compile:run" => {
+            let mut cmd = std::process::Command::new("cargo");
+            cmd.arg("run");
+            if args.len() > 2 {
+                cmd.args(&args[2..]);
+            }
+            let status = utils::run_cargo_with_progress(cmd)
+                .expect("❌ Gagal menjalankan cargo run.");
+            if !status.success() {
+                std::process::exit(status.code().unwrap_or(1));
+            }
+            return;
+        }
         "test" => {
             println!("\n{} {}", "🧪".bold(), "Menjalankan unit/integration testing RustBasic...".magenta().bold());
-            let status = std::process::Command::new("cargo")
-                .arg("test")
-                .status()
+            let mut cmd = std::process::Command::new("cargo");
+            cmd.arg("test");
+            let status = utils::run_cargo_with_progress(cmd)
                 .expect("❌ Gagal menjalankan cargo test.");
             
             if !status.success() {
@@ -252,8 +266,13 @@ fn main() {
                         watch_args.push("src/resources".to_string());
                     }
 
-                    watch_args.push("-x".to_string());
-                    watch_args.push("run".to_string());
+                    let current_exe = std::env::current_exe()
+                        .ok()
+                        .and_then(|p| p.to_str().map(|s| s.to_string()))
+                        .unwrap_or_else(|| "rustbasic".to_string());
+
+                    watch_args.push("-s".to_string());
+                    watch_args.push(format!("\"{}\" compile:run", current_exe));
 
                     let status = std::process::Command::new("cargo")
                         .args(&watch_args)
@@ -268,9 +287,9 @@ fn main() {
                     println!("{}", "💡 Tips: Instal cargo-watch dengan 'cargo install cargo-watch' untuk mengaktifkan Auto-Reload.".cyan().italic());
                     println!("\n   {} {}", "🚀".bold(), "Menjalankan server RustBasic...".magenta().bold());
 
-                    let status = std::process::Command::new("cargo")
-                        .arg("run")
-                        .status()
+                    let mut cmd = std::process::Command::new("cargo");
+                    cmd.arg("run");
+                    let status = utils::run_cargo_with_progress(cmd)
                         .expect("❌ Gagal menjalankan cargo run.");
                     
                     if !status.success() {

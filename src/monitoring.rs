@@ -1,7 +1,7 @@
 use std::fs;
 use std::process::Command;
-use regex::Regex;
-use colored::*;
+use rustbasic_core::regex::Regex;
+use rustbasic_core::colored::*;
 
 #[allow(clippy::collapsible_if)]
 pub fn list_routes() {
@@ -83,8 +83,8 @@ pub fn check_security() {
 
     // 4. Cek XSS Protection (Template Engine)
     println!("\n{}", "4. Proteksi XSS:".bold());
-    if cargo_toml.contains("minijinja") {
-        println!("   {} MiniJinja melakukan auto-escaping secara default.", "✅ Aman:".green());
+    if cargo_toml.contains("rustbasic-template") {
+        println!("   {} RustBasic Template Engine melakukan auto-escaping secara default.", "✅ Aman:".green());
     }
 
     // 5. Audit Dependency (External Tool)

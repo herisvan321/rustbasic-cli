@@ -1,9 +1,10 @@
 use std::fs;
-use base64::{Engine as _, engine::general_purpose};
-use sqlx::AnyPool;
-use colored::*;
-use rand::Rng;
-use regex::Regex;
+use rustbasic_core::base64::engine::general_purpose;
+use rustbasic_core::sql::{self, AnyPool};
+use rustbasic_core::colored::*;
+use rustbasic_core::rand;
+use rustbasic_core::regex::Regex;
+use rustbasic_core::dotenvy;
 
 pub struct LocalDbConfig {
     pub db_connection: String,
@@ -43,7 +44,7 @@ impl LocalDbConfig {
 }
 
 pub async fn connect() -> AnyPool {
-    sqlx::any::install_default_drivers();
+    sql::any::install_default_drivers();
 
     let cfg = LocalDbConfig::load();
     let db_url = cfg.db_url();
@@ -56,20 +57,23 @@ pub async fn connect() -> AnyPool {
         Ok(pool) => pool,
         Err(e) => {
             let err_msg = e.to_string();
+            #[cfg(feature = "mysql")]
             if (err_msg.contains("1049") || err_msg.contains("Unknown database")) && cfg.db_connection == "mysql" {
                 println!("{}", "⚠️  Database tidak ditemukan. Mencoba membuat database baru...".yellow());
                 let root_url = format!(
                     "mysql://{}:{}@{}:{}",
                     cfg.db_username, cfg.db_password, cfg.db_host, cfg.db_port
                 );
-                if let Ok(pool) = sqlx::MySqlPool::connect(&root_url).await {
+                if let Ok(pool) = sql::MySqlPool::connect(&root_url).await {
                     let create_query = format!("CREATE DATABASE IF NOT EXISTS `{}`", cfg.db_database);
-                    if sqlx::query(&create_query).execute(&pool).await.is_ok() {
+                    if sql::query(&create_query).execute(&pool).await.is_ok() {
                         println!("✅ Database '{}' berhasil dibuat.", cfg.db_database.green());
                         return AnyPool::connect(&db_url).await.expect("Gagal terhubung setelah membuat database");
                     }
                 }
             }
+            #[cfg(not(feature = "mysql"))]
+            let _ = err_msg;
             panic!("Gagal terhubung ke database: {:?}", e);
         }
     }
@@ -108,7 +112,7 @@ pub async fn clear_cache() {
         "DELETE FROM sessions"
     };
 
-    match sqlx::query(sql).execute(&pool).await {
+    match sql::query(sql).execute(&pool).await {
         Ok(_) => println!("   {} Tabel sessions telah dikosongkan.", "✅ Sessions:".green()),
         Err(e) => println!("   {} Gagal membersihkan tabel sessions. ({})", "❌ Error:".red(), e),
     }
@@ -161,7 +165,7 @@ pub async fn ensure_session() {
         let _ = std::fs::create_dir_all("database");
     }
 
-    sqlx::any::install_default_drivers();
+    sql::any::install_default_drivers();
     let pool = match AnyPool::connect(&db_url).await {
         Ok(p) => p,
         Err(_) => return,
@@ -184,7 +188,7 @@ pub async fn ensure_session() {
         )"
     };
 
-    if sqlx::query(create_table_sql).execute(&pool).await.is_err() {
+    if sql::query(create_table_sql).execute(&pool).await.is_err() {
         return;
     }
 
@@ -199,7 +203,7 @@ pub async fn ensure_session() {
     let mut session_exists = false;
 
     if !session_id.is_empty()
-        && let Ok(Some(_)) = sqlx::query("SELECT id FROM sessions WHERE id = ?")
+        && let Ok(Some(_)) = sql::query("SELECT id FROM sessions WHERE id = ?")
             .bind(&session_id)
             .fetch_optional(&pool)
             .await
@@ -213,8 +217,8 @@ pub async fn ensure_session() {
         session_id = general_purpose::STANDARD.encode(bytes);
         need_to_write = true;
 
-        let now = chrono::Utc::now().timestamp();
-        if sqlx::query("INSERT INTO sessions (id, payload, last_activity, ip_address) VALUES (?, ?, ?, ?)")
+        let now = rustbasic_core::chrono::Utc::now().timestamp();
+        if sql::query("INSERT INTO sessions (id, payload, last_activity, ip_address) VALUES (?, ?, ?, ?)")
             .bind(&session_id)
             .bind("{}")
             .bind(now)
@@ -226,8 +230,8 @@ pub async fn ensure_session() {
             println!("✨ {} ({})", "Session baru berhasil dibuat dan disimpan di database.".green().bold(), session_id.cyan());
         }
     } else {
-        let now = chrono::Utc::now().timestamp();
-        let _ = sqlx::query("UPDATE sessions SET last_activity = ? WHERE id = ?")
+        let now = rustbasic_core::chrono::Utc::now().timestamp();
+        let _ = sql::query("UPDATE sessions SET last_activity = ? WHERE id = ?")
             .bind(now)
             .bind(&session_id)
             .execute(&pool)

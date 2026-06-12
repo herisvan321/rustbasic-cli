@@ -11,8 +11,8 @@ pub use builder::*;
 pub use utils::*;
 
 use std::env;
-use dotenvy::dotenv;
-use colored::*;
+use rustbasic_core::dotenvy::dotenv;
+use rustbasic_core::colored::*;
 use std::future::Future;
 use std::pin::Pin;
 

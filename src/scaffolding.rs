@@ -1,7 +1,7 @@
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
-use chrono::Local;
-use colored::*;
+use rustbasic_core::chrono::Local;
+use rustbasic_core::colored::*;
 use crate::utils::{to_snake_case, to_pascal_case};
 
 pub fn make_controller(name: &str) {
@@ -549,7 +549,7 @@ r#"/* ---------------------------------------------------------
  * 📑 LABEL: {class_name} (services/{file_name})
  * --------------------------------------------------------- */
 
-use rustbasic_core::sqlx::AnyPool;
+use rustbasic_core::sql::AnyPool;
 
 pub struct {class_name} {{
     _db: AnyPool,
