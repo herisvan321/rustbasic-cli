@@ -31,6 +31,42 @@ fn known_packages(name: &str) -> Option<PackageInfo> {
             setup_command: Some("breeze:install"),
             remove_command: Some("breeze:remove"),
         }),
+        "rustbasic-activitylog" => Some(PackageInfo {
+            version: "0.0",
+            description: "Activity logging package for tracking actions and HTTP requests",
+            setup_command: Some("activitylog:install"),
+            remove_command: None,
+        }),
+        "rustbasic-jwt" => Some(PackageInfo {
+            version: "0.0",
+            description: "JWT authentication package (tokens, claims, blacklist)",
+            setup_command: None,
+            remove_command: None,
+        }),
+        "rustbasic-medialibrary" => Some(PackageInfo {
+            version: "0.0",
+            description: "Advanced media library management (upload, WebP compression, S3 integration)",
+            setup_command: None,
+            remove_command: None,
+        }),
+        "rustbasic-permission" => Some(PackageInfo {
+            version: "0.0",
+            description: "Role and Permission management package (RBAC)",
+            setup_command: Some("permission:install"),
+            remove_command: None,
+        }),
+        "rustbasic-translatable" => Some(PackageInfo {
+            version: "0.0",
+            description: "Multi-language JSON translation and localization package",
+            setup_command: None,
+            remove_command: None,
+        }),
+        "rustbasic-webp" => Some(PackageInfo {
+            version: "0.0",
+            description: "High-performance WebP image conversion and resizing package",
+            setup_command: None,
+            remove_command: None,
+        }),
         _ => None,
     }
 }
@@ -236,6 +272,32 @@ async fn main() {
 async fn main() {
     dotenv().ok();
     rustbasic_breeze::remove_auth().await;
+}
+"#.to_string()
+        }
+        "activitylog:install" => {
+            r#"fn main() {
+    println!("⚙️ Menjalankan generator scaffolding Activity Log...");
+    let mut cmd = std::process::Command::new("cargo");
+    cmd.args(["run", "--bin", "rustbasic-activitylog", "--", "install"]);
+    if let Ok(status) = cmd.status() {
+        if !status.success() {
+            eprintln!("❌ Scaffolding Activity Log gagal");
+        }
+    }
+}
+"#.to_string()
+        }
+        "permission:install" => {
+            r#"fn main() {
+    println!("⚙️ Menjalankan generator scaffolding RBAC Permission...");
+    let mut cmd = std::process::Command::new("cargo");
+    cmd.args(["run", "--bin", "rustbasic-permission", "--", "install"]);
+    if let Ok(status) = cmd.status() {
+        if !status.success() {
+            eprintln!("❌ Scaffolding RBAC Permission gagal");
+        }
+    }
 }
 "#.to_string()
         }

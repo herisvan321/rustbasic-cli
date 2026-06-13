@@ -38,6 +38,18 @@ rustbasic make:controller ArticleController
 rustbasic make:model Product -m
 ```
 
+### D. Pengelolaan Paket Tambahan (Package Manager)
+```bash
+# Menginstal paket autentikasi otomatis (Breeze)
+rustbasic install rustbasic-breeze
+
+# Menampilkan daftar seluruh paket resmi yang terinstal
+rustbasic list packages
+
+# Menghapus paket tambahan beserta berkas scaffolding-nya secara bersih
+rustbasic uninstall rustbasic-breeze
+```
+
 ---
 
 ## 🔄 Perbandingan Pemakaian (Pintasan CLI vs Operasi Manual)
@@ -67,6 +79,9 @@ Berikut adalah tabel perintah penting yang disediakan oleh RustBasic CLI:
 | **`db:seed`** | Menjalankan pengisian data awal database (seeder). | Tabel database terisi data dummy awal otomatis. |
 | **`route:list`** | Menampilkan seluruh daftar rute URL yang terdaftar. | Tabel rute & middleware tercetak di layar terminal. |
 | **`key:generate`** | Menghasilkan kunci enkripsi aplikasi baru. | Kunci enkripsi acak tersimpan otomatis pada berkas `.env`. |
+| **`install <package>`** | Menginstal paket resmi tambahan ke proyek. | Paket terdaftar di `Cargo.toml` & scaffolding selesai dijalankan. |
+| **`list packages`** | Menampilkan daftar paket tambahan yang terinstal. | Seluruh nama, versi, dan deskripsi paket tercetak di layar. |
+| **`uninstall <package>`**| Menghapus paket beserta seluruh berkas scaffolding-nya. | Paket dihapus secara bersih dari proyek. |
 
 ---
 
