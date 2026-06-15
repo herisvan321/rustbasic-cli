@@ -143,6 +143,14 @@ model! {{
     Model {{
         pub id: i32,
         // tambahkan field lainnya di sini
+        
+        // Contoh Cast Boolean (0/1 dari DB dikonversi otomatis ke bool di Rust):
+        // #[serde(default, deserialize_with = "rustbasic_core::support::casts::deserialize_bool", serialize_with = "rustbasic_core::support::casts::serialize_bool")]
+        // pub is_active: bool,
+        
+        // Contoh Cast JSON (Kolom TEXT berisi JSON di DB dikonversi otomatis ke serde_json::Value di Rust):
+        // #[serde(default, deserialize_with = "rustbasic_core::support::casts::deserialize_option_json", serialize_with = "rustbasic_core::support::casts::serialize_option_json")]
+        // pub metadata: Option<rustbasic_core::serde_json::Value>,
     }}
 }}
 "#, table_name = table_name);

@@ -140,8 +140,15 @@ fn main() {
             return;
         }
         "build" => {
-            builder::build_project();
-            println!("\n{} {}", "✅".green(), "Build project berhasil diselesaikan.".green().bold());
+            let run_android = args.iter().any(|arg| arg == "--android");
+            let run_desktop = args.iter().any(|arg| arg == "--desktop");
+            
+            if run_android || run_desktop {
+                builder::build_native_project(run_android, run_desktop);
+            } else {
+                builder::build_project();
+                println!("\n{} {}", "✅".green(), "Build project berhasil diselesaikan.".green().bold());
+            }
             return;
         }
         "check:update" => {
@@ -199,7 +206,67 @@ fn main() {
         let _ = dotenv();
 
         match command {
-            "serve" => {
+            "serve" | "server" => {
+                let run_android = args.iter().any(|arg| arg == "--android");
+                let run_desktop = args.iter().any(|arg| arg == "--desktop");
+                if run_android || run_desktop {
+                    let _ = dotenv();
+                    let cfg = rustbasic_core::Config::load();
+                    let vite_port = cfg.vite_port;
+
+                    let vite_already_running = if let Ok(addr) = format!("127.0.0.1:{}", vite_port).parse() {
+                        std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(100)).is_ok()
+                    } else {
+                        false
+                    };
+
+                    let vite_child = if vite_already_running {
+                        println!("📦 Vite Development Server sudah berjalan di port {}.", vite_port);
+                        None
+                    } else if std::path::Path::new("package.json").exists() {
+                        println!("📦 Memulai Vite Development Server (npm run dev)...");
+                        let mut vite_cmd = if cfg!(target_os = "windows") {
+                            let mut c = std::process::Command::new("cmd");
+                            c.args(["/C", "npm", "run", "dev"]);
+                            c
+                        } else {
+                            let mut c = std::process::Command::new("npm");
+                            c.args(["run", "dev"]);
+                            c
+                        };
+                        vite_cmd
+                            .stdout(std::process::Stdio::null())
+                            .stderr(std::process::Stdio::null())
+                            .spawn()
+                            .ok()
+                    } else {
+                        None
+                    };
+
+                    // Tunggu sebentar agar port Vite mulai terikat jika baru dinyalakan
+                    if vite_child.is_some() {
+                        std::thread::sleep(std::time::Duration::from_millis(800));
+                    }
+
+                    let mut cmd = std::process::Command::new("cargo");
+                    cmd.arg("run");
+                    cmd.arg("--");
+                    cmd.args(&args[1..]);
+                    let status = utils::run_cargo_with_progress(cmd);
+                    
+                    if let Some(mut child) = vite_child {
+                        let _ = child.kill();
+                        println!("👋 Menghentikan Vite Development Server.");
+                    }
+
+                    if let Ok(s) = status {
+                        if !s.success() {
+                            std::process::exit(s.code().unwrap_or(1));
+                        }
+                    }
+                    return;
+                }
+
                 if std::path::Path::new("package.json").exists() {
                     if !std::path::Path::new("node_modules").exists() {
                         println!("\n📦 {}...", "node_modules tidak ditemukan. Menjalankan npm install".cyan().bold());

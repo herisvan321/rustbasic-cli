@@ -402,3 +402,218 @@ pub fn build_project() {
         println!("3. Gunakan '{}'", "cargo zigbuild --target <target>".white().on_black());
     }
 }
+pub fn build_native_project(run_android: bool, run_desktop: bool) {
+    println!("\n{}", "🚀 RustBasic Native Build Manager".magenta().bold());
+    println!("{}", "---------------------------------".magenta());
+
+    // 1. Jalankan npm run build untuk Frontend
+    if Path::new("package.json").exists() {
+        println!("\n{}", "📦 Memulai kompilasi aset frontend (npm run build)...".blue());
+        let npm_cmd = if cfg!(target_os = "windows") { "npm.cmd" } else { "npm" };
+        let status = Command::new(npm_cmd)
+            .args(["run", "build"])
+            .status();
+
+        match status {
+            Ok(s) if s.success() => {
+                println!("{}", "✅ Kompilasi frontend berhasil!".green().bold());
+            }
+            Ok(s) => {
+                println!("{} {}", "❌ Error: npm run build keluar dengan kode:".red().bold(), s);
+                println!("{}", "⚠️  Proses build dihentikan karena kompilasi frontend gagal.".yellow());
+                return;
+            }
+            Err(e) => {
+                println!("{} {}", "❌ Error: Gagal mengeksekusi 'npm'. Pastikan npm terinstal.".red().bold(), e);
+                return;
+            }
+        }
+    }
+
+    if run_desktop {
+        println!("\n{}", "🛠️  Menyiapkan build Desktop Wrapper...".blue());
+        if !Path::new("native/desktop/Cargo.toml").exists() {
+            println!("{}", "❌ Error: Folder native/desktop tidak ditemukan. Jalankan 'rustbasic-native install' terlebih dahulu.".red().bold());
+            return;
+        }
+
+        let mut cmd = Command::new("cargo");
+        cmd.args(["build", "--manifest-path", "native/desktop/Cargo.toml", "--release"]);
+        println!("{} {:?}", "🚀 Menjalankan:".blue().bold(), cmd);
+        
+        let status = cmd.status();
+        match status {
+            Ok(s) if s.success() => {
+                let bin_name = if cfg!(target_os = "windows") {
+                    "rustbasic-native-desktop.exe"
+                } else {
+                    "rustbasic-native-desktop"
+                };
+                let bin_path = Path::new("native/desktop/target/release").join(bin_name);
+                println!("\n🎉 {}", "Build Desktop Wrapper berhasil!".green().bold());
+                println!("🚀 Hasil executable berada di: {}", bin_path.display().to_string().cyan().bold());
+            }
+            _ => {
+                println!("\n❌ {}", "Build Desktop Wrapper gagal.".red().bold());
+            }
+        }
+    }
+    if run_android {
+        println!("\n{}", "🛠️  Menyiapkan build Android Wrapper...".blue());
+        if !Path::new("native/android/build.gradle").exists() {
+            println!("{}", "❌ Error: Folder native/android tidak ditemukan. Jalankan 'rustbasic-native install' terlebih dahulu.".red().bold());
+            return;
+        }
+
+        // Jalankan build-android.sh untuk compile JNI release
+        println!(" JNI shared libraries...");
+        let sh_cmd = if cfg!(target_os = "windows") { "sh" } else { "bash" };
+        let status = Command::new(sh_cmd)
+            .arg("./native/build-android.sh")
+            .status();
+
+        match status {
+            Ok(s) if s.success() => {
+                println!("{}", "✅ Kompilasi JNI shared libraries berhasil!".green().bold());
+            }
+            _ => {
+                println!("{}", "❌ Error: Gagal mengompilasi JNI libraries.".red().bold());
+                return;
+            }
+        }
+
+        // Tentukan JAVA_HOME jika belum diatur
+        let has_java_home = std::env::var("JAVA_HOME").is_ok();
+        let mut custom_java_home = None;
+        if !has_java_home {
+            // Coba deteksi Android Studio JDK di berbagai platform
+            if cfg!(target_os = "macos") {
+                let mac_studio_jdk = "/Applications/Android Studio.app/Contents/jbr/Contents/Home";
+                if Path::new(mac_studio_jdk).exists() {
+                    custom_java_home = Some(mac_studio_jdk.to_string());
+                }
+            } else if cfg!(target_os = "windows") {
+                let win_paths = [
+                    "C:\\Program Files\\Android\\Android Studio\\jbr",
+                    "C:\\Program Files\\Android\\Android Studio\\jre",
+                ];
+                for path in &win_paths {
+                    if Path::new(path).exists() {
+                        custom_java_home = Some(path.to_string());
+                        break;
+                    }
+                }
+            } else {
+                // Linux & other Unix-like OS
+                let unix_paths = [
+                    "/opt/android-studio/jbr",
+                    "/opt/android-studio/jre",
+                    "/snap/android-studio/current/jbr",
+                    "/snap/android-studio/current/jre",
+                    "/usr/local/android-studio/jbr",
+                    "/usr/local/android-studio/jre",
+                    "/usr/lib/jvm/default-java",
+                ];
+                for path in &unix_paths {
+                    if Path::new(path).exists() {
+                        custom_java_home = Some(path.to_string());
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 1. Generate Keystore if not exists
+        let keystore_path = Path::new("native/android/app/release.keystore");
+        if !keystore_path.exists() {
+            println!("🔑 Menghasilkan developer release keystore baru...");
+            let keytool_bin = if let Some(jh) = custom_java_home.as_ref() {
+                let jh_bin = Path::new(jh).join("bin/keytool");
+                if jh_bin.exists() {
+                    jh_bin.display().to_string()
+                } else {
+                    "keytool".to_string()
+                }
+            } else {
+                "keytool".to_string()
+            };
+
+            let mut keytool_cmd = Command::new(keytool_bin);
+            keytool_cmd.args([
+                "-genkeypair",
+                "-v",
+                "-keystore",
+                "native/android/app/release.keystore",
+                "-alias",
+                "rustbasic",
+                "-keyalg",
+                "RSA",
+                "-keysize",
+                "2048",
+                "-validity",
+                "10000",
+                "-storepass",
+                "rustbasic",
+                "-keypass",
+                "rustbasic",
+                "-dname",
+                "CN=RustBasic Developer, O=RustBasic, C=ID"
+            ]);
+            let _ = keytool_cmd.status();
+        }
+
+        // 2. Inject signingConfigs into build.gradle if not already present
+        let gradle_path = Path::new("native/android/app/build.gradle");
+        if gradle_path.exists() {
+            if let Ok(content) = fs::read_to_string(gradle_path) {
+                if !content.contains("signingConfigs") {
+                    println!("📝 Menyematkan konfigurasi tanda tangan (signingConfigs) ke build.gradle...");
+                    let updated_content = content
+                        .replace(
+                            "buildTypes {",
+                            "signingConfigs {\n        release {\n            storeFile file(\"release.keystore\")\n            storePassword \"rustbasic\"\n            keyAlias \"rustbasic\"\n            keyPassword \"rustbasic\"\n        }\n    }\n\n    buildTypes {"
+                        )
+                        .replace(
+                            "buildTypes {\n        release {\n            minifyEnabled",
+                            "buildTypes {\n        release {\n            signingConfig signingConfigs.release\n            minifyEnabled"
+                        )
+                        .replace(
+                            "buildTypes {\r\n        release {\r\n            minifyEnabled",
+                            "buildTypes {\r\n        release {\r\n            signingConfig signingConfigs.release\r\n            minifyEnabled"
+                        );
+                    let _ = fs::write(gradle_path, updated_content);
+                }
+            }
+        }
+
+        println!("🔨 Memulai kompilasi APK & AAB menggunakan Gradle...");
+        let gradlew_bin = if cfg!(target_os = "windows") { "gradlew.bat" } else { "./gradlew" };
+        let mut gradle_cmd = Command::new(gradlew_bin);
+        gradle_cmd.args(["assembleRelease", "bundleRelease"]);
+        gradle_cmd.current_dir("native/android");
+
+        if let Some(jh) = custom_java_home.as_ref() {
+            gradle_cmd.env("JAVA_HOME", jh);
+        }
+
+        let status = gradle_cmd.status();
+        match status {
+            Ok(s) if s.success() => {
+                println!("\n🎉 {}", "Build Android Wrapper berhasil!".green().bold());
+                println!("📦 Hasil output:");
+                let apk_signed = "native/android/app/build/outputs/apk/release/app-release.apk";
+                let final_apk = if Path::new(apk_signed).exists() {
+                    apk_signed
+                } else {
+                    "native/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+                };
+                println!("   - APK: {}", final_apk.cyan().bold());
+                println!("   - AAB: {}", "native/android/app/build/outputs/bundle/release/app-release.aab".cyan().bold());
+            }
+            _ => {
+                println!("\n❌ {}", "Build Android Wrapper gagal.".red().bold());
+            }
+        }
+    }
+}
+

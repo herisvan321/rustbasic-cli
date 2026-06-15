@@ -139,6 +139,7 @@ pub fn run_cargo_with_progress(mut cmd: std::process::Command) -> std::io::Resul
     
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::piped());
+    cmd.stdin(std::process::Stdio::inherit());
     
     let mut child = cmd.spawn()?;
     

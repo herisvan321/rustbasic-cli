@@ -325,16 +325,16 @@ checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
 
 [[package]]
 name = "rustbasic-cli"
-version = "0.0.30"
+version = "0.0.31"
 dependencies = [
  "rustbasic-core",
 ]
 
 [[package]]
 name = "rustbasic-core"
-version = "0.1.24"
+version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c407cb08bd8d74ae4160c854ab35eb57a00c0f1e0aaf62bef0e847898f994cf"
+checksum = "110f093957b04467298822d0f70d0fe6ea958bdbd5c568a09f9d0b04fc4c59ce"
 dependencies = [
  "http",
  "http-body-util",

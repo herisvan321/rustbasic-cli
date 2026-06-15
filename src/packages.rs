@@ -67,6 +67,12 @@ fn known_packages(name: &str) -> Option<PackageInfo> {
             setup_command: None,
             remove_command: None,
         }),
+        "rustbasic-native" => Some(PackageInfo {
+            version: "0.0",
+            description: "Native platform wrapper package for running RustBasic server inside Mobile (Android/iOS) & Desktop apps",
+            setup_command: Some("native:install"),
+            remove_command: Some("native:remove"),
+        }),
         _ => None,
     }
 }
@@ -296,6 +302,32 @@ async fn main() {
     if let Ok(status) = cmd.status() {
         if !status.success() {
             eprintln!("❌ Scaffolding RBAC Permission gagal");
+        }
+    }
+}
+"#.to_string()
+        }
+        "native:install" => {
+            r#"fn main() {
+    println!("⚙️ Menjalankan generator scaffolding RustBasic Native...");
+    let mut cmd = std::process::Command::new("cargo");
+    cmd.args(["run", "--manifest-path", "../rustbasic-native/Cargo.toml", "--", "install"]);
+    if let Ok(status) = cmd.status() {
+        if !status.success() {
+            eprintln!("❌ Scaffolding RustBasic Native gagal");
+        }
+    }
+}
+"#.to_string()
+        }
+        "native:remove" => {
+            r#"fn main() {
+    println!("⚙️ Membersihkan scaffolding RustBasic Native...");
+    let mut cmd = std::process::Command::new("cargo");
+    cmd.args(["run", "--manifest-path", "../rustbasic-native/Cargo.toml", "--", "uninstall"]);
+    if let Ok(status) = cmd.status() {
+        if !status.success() {
+            eprintln!("❌ Pembersihan scaffolding RustBasic Native gagal");
         }
     }
 }
