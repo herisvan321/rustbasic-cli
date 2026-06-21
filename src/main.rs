@@ -6,6 +6,7 @@ use rustbasic_cli::*;
 
 #[allow(clippy::collapsible_if)]
 fn main() {
+    let _ = dotenv();
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 2 {
@@ -140,15 +141,77 @@ fn main() {
             return;
         }
         "build" => {
+            delegate_to_cargo(&args);
             let run_android = args.iter().any(|arg| arg == "--android");
             let run_desktop = args.iter().any(|arg| arg == "--desktop");
+            let run_docker = args.iter().any(|arg| arg == "--docker");
             
-            if run_android || run_desktop {
-                builder::build_native_project(run_android, run_desktop);
+            if run_docker || run_android || run_desktop {
+                // Gunakan build_interactive untuk Docker/Desktop/Android dengan flag eksplisit
+                builder::build_interactive(&args);
+            } else if args.len() > 2 {
+                // Ada flag lain, delegasikan ke build_interactive
+                builder::build_interactive(&args);
             } else {
-                builder::build_project();
-                println!("\n{} {}", "✅".green(), "Build project berhasil diselesaikan.".green().bold());
+                // Tanpa flag apapun, tampilkan menu interaktif
+                builder::build_interactive(&args);
             }
+            return;
+        }
+        "deploy" => {
+            delegate_to_cargo(&args);
+            builder::deploy_interactive();
+            return;
+        }
+        "clean" => {
+            println!("\n🧹 Membersihkan proyek RustBasic...");
+            println!("📦 Menghapus hasil kompilasi Rust (cargo clean)...");
+            let cargo_clean = std::process::Command::new("cargo")
+                .arg("clean")
+                .spawn();
+            
+            let mut cargo_success = false;
+            if let Ok(mut child) = cargo_clean {
+                if let Ok(status) = child.wait() {
+                    cargo_success = status.success();
+                }
+            }
+            
+            if cargo_success {
+                println!("✅ Folder target kompilasi lokal berhasil dihapus.");
+            } else {
+                println!("⚠️  Gagal menjalankan 'cargo clean' atau command tidak ditemukan.");
+            }
+
+            // Hapus sisa file tar ekspor docker jika ada
+            let tar_files = vec!["rustbasic.tar", "rustbasic.tar.gz"];
+            for file in tar_files {
+                let path = std::path::Path::new(file);
+                if path.exists() {
+                    let _ = std::fs::remove_file(path);
+                    println!("🗑️  Berhasil menghapus file ekspor: {}", file);
+                }
+            }
+            
+            // Hapus temporary .tmp-rustbasic.tar.* files
+            if let Ok(entries) = std::fs::read_dir(".") {
+                for entry in entries.flatten() {
+                    if let Some(name) = entry.file_name().to_str() {
+                        if name.starts_with(".tmp-rustbasic.tar") || name.starts_with("rustbasic.tar") {
+                            let _ = std::fs::remove_file(entry.path());
+                            println!("🗑️  Berhasil menghapus file temp: {}", name);
+                        }
+                    }
+                }
+            }
+
+            // Docker cache prune
+            println!("🐳 Mencoba membersihkan cache builder Docker...");
+            let _ = std::process::Command::new("docker")
+                .args(&["builder", "prune", "-f"])
+                .status();
+            
+            println!("\n✨ Semua proses pembersihan selesai!");
             return;
         }
         "check:update" => {
@@ -196,6 +259,11 @@ fn main() {
             }
             return;
         }
+        "publish" => {
+            let target = args.get(2).map(|s| s.as_str()).unwrap_or("");
+            rustbasic_cli::publisher::publish_config(target);
+            return;
+        }
         _ => {}
     }
 
@@ -207,6 +275,11 @@ fn main() {
 
         match command {
             "serve" | "server" => {
+                if !std::path::Path::new("Cargo.toml").exists() {
+                    println!("{}", "❌ Error: File Cargo.toml tidak ditemukan di direktori saat ini.".red().bold());
+                    println!("{}", "   Pastikan Anda berada di root project sebelum menjalankan server.".cyan());
+                    return;
+                }
                 let run_android = args.iter().any(|arg| arg == "--android");
                 let run_desktop = args.iter().any(|arg| arg == "--desktop");
                 if run_android || run_desktop {
@@ -422,6 +495,16 @@ fn run_new_command(args: &[String]) {
             if std::path::Path::new(&env_example).exists() {
                 let _ = std::fs::copy(&env_example, &env_file);
             }
+            
+            // Bersihkan path = "../rustbasic-core" dari Cargo.toml proyek baru
+            let cargo_toml_path = format!("{}/Cargo.toml", project_name);
+            if let Ok(content) = std::fs::read_to_string(&cargo_toml_path) {
+                let cleaned = content
+                    .replace(", path = \"../rustbasic-core\"", "")
+                    .replace("path = \"../rustbasic-core\", ", "")
+                    .replace("path = \"../rustbasic-core\"", "");
+                let _ = std::fs::write(&cargo_toml_path, cleaned);
+            }
             if std::env::set_current_dir(project_name).is_ok() {
                 database::generate_app_key();
                 println!("📦 {}", "Mengunduh dependencies...".bold());
@@ -491,11 +574,13 @@ fn print_help() {
     println!("  {} {}        {}", "rustbasic".blue(), "check:security".green(), "Melakukan audit keamanan dependency".dimmed());
     println!("  {} {}          {}", "rustbasic".blue(), "check:update".green(), "Memeriksa pembaruan dependency di crates.io".dimmed());
     println!("  {} {}               {}", "rustbasic".blue(), "version".green(), "Menampilkan versi RustBasic CLI".dimmed());
+    println!("  {} {}                 {}", "rustbasic".blue(), "clean".green(), "Membersihkan cache kompilasi Rust dan Docker".dimmed());
 
     println!("\n{}", "Package Manager:".bold());
     println!("  {} {} <Package>     {}", "rustbasic".blue(), "install".green(), "Install package RustBasic ke project".dimmed());
     println!("  {} {}    {}", "rustbasic".blue(), "list packages".green(), "Tampilkan daftar package yang terinstall".dimmed());
     println!("  {} {} <Package>   {}", "rustbasic".blue(), "uninstall".green(), "Hapus package beserta file konfigurasinya".dimmed());
+    println!("  {} {} <Target>    {}", "rustbasic".blue(), "publish".green(), "Salin konfigurasi package (misal: cors, csrf) ke local".dimmed());
 
     println!("\n{}", "Package tersedia:".bold());
     println!("  {}  {}", "rustbasic-breeze".cyan(), "→ Authentication scaffolding (login, register, reset password)".dimmed());

@@ -4,6 +4,7 @@ pub mod monitoring;
 pub mod builder;
 pub mod utils;
 pub mod packages;
+pub mod publisher;
 pub use scaffolding::*;
 pub use database::*;
 pub use monitoring::*;
@@ -72,21 +73,40 @@ pub async fn handle<M: rustbasic_core::MigratorTrait + Send + Sync + 'static>(ar
     // Daftar perintah yang ditangani oleh CLI lokal project
     let is_migration_cmd = command.starts_with("migrate") || command == "db:seed";
     let is_storage_cmd = command == "storage:link";
-    
-    if !is_migration_cmd && !is_storage_cmd {
+    let is_build_cmd = command == "build";
+    let is_server_cmd = command == "server" || command == "serve";
+
+    // Server --android / --desktop
+    if is_server_cmd {
+        let run_android = args.iter().any(|arg| arg == "--android");
+        let run_desktop = args.iter().any(|arg| arg == "--desktop");
+        if run_android || run_desktop {
+            builder::run_native(run_android, run_desktop);
+            return true;
+        }
+        return false; // Fall through ke standard web server
+    }
+
+    if !is_migration_cmd && !is_storage_cmd && !is_build_cmd {
         return false;
     }
 
-    ensure_session().await;
+    // Skip logger banner for non-server commands
+    println!("🛠️  RustBasic Local CLI - Command: {}", command);
 
-    println!("{} {}", "🛠️  RustBasic Local CLI - Command:".magenta().bold(), command.yellow());
+    if is_build_cmd {
+        builder::build_interactive(args);
+        return true;
+    }
 
     if is_storage_cmd {
         handle_storage_link();
         return true;
     }
 
-    // Gunakan fungsi connect lokal
+    ensure_session().await;
+
+    // Hubungkan ke database
     let db = crate::database::connect().await;
 
     match command {

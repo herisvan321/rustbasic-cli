@@ -35,13 +35,13 @@ fn known_packages(name: &str) -> Option<PackageInfo> {
             version: "0.0",
             description: "Activity logging package for tracking actions and HTTP requests",
             setup_command: Some("activitylog:install"),
-            remove_command: None,
+            remove_command: Some("activitylog:remove"),
         }),
         "rustbasic-jwt" => Some(PackageInfo {
             version: "0.0",
             description: "JWT authentication package (tokens, claims, blacklist)",
             setup_command: None,
-            remove_command: None,
+            remove_command: Some("jwt:remove"),
         }),
         "rustbasic-medialibrary" => Some(PackageInfo {
             version: "0.0",
@@ -53,7 +53,7 @@ fn known_packages(name: &str) -> Option<PackageInfo> {
             version: "0.0",
             description: "Role and Permission management package (RBAC)",
             setup_command: Some("permission:install"),
-            remove_command: None,
+            remove_command: Some("permission:remove"),
         }),
         "rustbasic-translatable" => Some(PackageInfo {
             version: "0.0",
@@ -143,7 +143,12 @@ fn cargo_add_package(name: &str, version: &str) -> bool {
         return true; // sudah ada
     }
 
-    let dep_line = format!("{} = {{ path = \"../{}\", version = \"{}\" }}\n", name, name, version);
+    let use_local_path = std::path::Path::new(&format!("../{}", name)).exists();
+    let dep_line = if use_local_path {
+        format!("{} = {{ path = \"../{}\", version = \"{}\" }}\n", name, name, version)
+    } else {
+        format!("{} = \"{}\"\n", name, version)
+    };
 
     // Sisipkan setelah [dependencies]
     if let Some(pos) = content.find("[dependencies]") {
@@ -265,73 +270,354 @@ fn run_setup_command(package_name: &str, command: &str) {
     let script = match command {
         "breeze:install" => {
             r#"use rustbasic_core::dotenvy::dotenv;
-#[tokio::main]
-async fn main() {
-    dotenv().ok();
-    rustbasic_breeze::make_auth().await;
+fn main() {
+    rustbasic_core::tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async {
+            dotenv().ok();
+            rustbasic_breeze::make_auth().await;
+        });
 }
 "#.to_string()
         }
         "breeze:remove" => {
             r#"use rustbasic_core::dotenvy::dotenv;
-#[tokio::main]
-async fn main() {
-    dotenv().ok();
-    rustbasic_breeze::remove_auth().await;
+fn main() {
+    rustbasic_core::tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async {
+            dotenv().ok();
+            rustbasic_breeze::remove_auth().await;
+        });
 }
 "#.to_string()
+        }
+        "activitylog:remove" => {
+            r##"use std::fs;
+use std::path::Path;
+
+fn main() {
+    println!("⚙️ Membersihkan scaffolding Activity Log...");
+    
+    // 1. Hapus model file
+    let path = "src/app/models/activity_log.rs";
+    if Path::new(path).exists() {
+        let _ = fs::remove_file(path);
+        println!("   🗑️ Dihapus: {}", path);
+    }
+
+    // 2. Bersihkan src/app/models/mod.rs
+    let mod_path = "src/app/models/mod.rs";
+    if Path::new(mod_path).exists() {
+        if let Ok(content) = fs::read_to_string(mod_path) {
+            let filtered: Vec<String> = content
+                .lines()
+                .filter(|line| {
+                    !line.contains("pub mod activity_log;") &&
+                    !line.contains("pub use activity_log::Model as ActivityLog;")
+                })
+                .map(|s| s.to_string())
+                .collect();
+            let _ = fs::write(mod_path, filtered.join("\n") + "\n");
+            println!("   📝 Diperbarui: {}", mod_path);
+        }
+    }
+
+    // 3. Hapus migrations
+    let migrations_dir = "database/migrations";
+    if let Ok(entries) = fs::read_dir(migrations_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.contains("create_activity_log_table") {
+                let path = entry.path();
+                let _ = fs::remove_file(&path);
+                println!("   🗑️ Dihapus: {}", path.display());
+                
+                // Bersihkan database/migrations/mod.rs
+                let mod_name = name.strip_suffix(".rs").unwrap_or(&name);
+                let migrations_mod_path = "database/migrations/mod.rs";
+                if Path::new(migrations_mod_path).exists() {
+                    if let Ok(content) = fs::read_to_string(migrations_mod_path) {
+                        let filtered: Vec<String> = content
+                            .lines()
+                            .filter(|line| {
+                                !line.contains(&format!("pub mod {};", mod_name)) &&
+                                !line.contains(&format!("Box::new({}::Migration)", mod_name))
+                            })
+                            .map(|s| s.to_string())
+                            .collect();
+                        let _ = fs::write(migrations_mod_path, filtered.join("\n") + "\n");
+                    }
+                }
+            }
+        }
+    }
+}
+"##.to_string()
+        }
+        "jwt:remove" => {
+            r##"use std::fs;
+use std::path::Path;
+
+fn main() {
+    println!("⚙️ Membersihkan scaffolding RustBasic JWT...");
+    
+    // 1. Hapus model files
+    let models = ["user.rs", "jwt_blacklist.rs"];
+    for model in &models {
+        let path = format!("src/app/models/{}", model);
+        if Path::new(&path).exists() {
+            let _ = fs::remove_file(&path);
+            println!("   🗑️ Dihapus: {}", path);
+        }
+    }
+
+    // 2. Bersihkan src/app/models/mod.rs
+    let mod_path = "src/app/models/mod.rs";
+    if Path::new(mod_path).exists() {
+        if let Ok(content) = fs::read_to_string(mod_path) {
+            let filtered: Vec<String> = content
+                .lines()
+                .filter(|line| {
+                    !line.contains("pub mod user;") &&
+                    !line.contains("pub use user::Entity as User;") &&
+                    !line.contains("pub use user::Model as User;") &&
+                    !line.contains("pub mod jwt_blacklist;") &&
+                    !line.contains("pub use jwt_blacklist::Entity as JwtBlacklist;") &&
+                    !line.contains("pub use jwt_blacklist::Model as JwtBlacklist;")
+                })
+                .map(|s| s.to_string())
+                .collect();
+            let _ = fs::write(mod_path, filtered.join("\n") + "\n");
+            println!("   📝 Diperbarui: {}", mod_path);
+        }
+    }
+
+    // 3. Hapus migrations
+    let migrations_dir = "database/migrations";
+    if let Ok(entries) = fs::read_dir(migrations_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if (name.contains("create_users_table") && name != "m20260501_000002_create_users_table.rs") || name.contains("create_jwt_blacklists_table") {
+                let path = entry.path();
+                let _ = fs::remove_file(&path);
+                println!("   🗑️ Dihapus: {}", path.display());
+                
+                // Bersihkan database/migrations/mod.rs
+                let mod_name = name.strip_suffix(".rs").unwrap_or(&name);
+                let migrations_mod_path = "database/migrations/mod.rs";
+                if Path::new(migrations_mod_path).exists() {
+                    if let Ok(content) = fs::read_to_string(migrations_mod_path) {
+                        let filtered: Vec<String> = content
+                            .lines()
+                            .filter(|line| {
+                                !line.contains(&format!("pub mod {};", mod_name)) &&
+                                !line.contains(&format!("Box::new({}::Migration)", mod_name))
+                            })
+                            .map(|s| s.to_string())
+                            .collect();
+                        let _ = fs::write(migrations_mod_path, filtered.join("\n") + "\n");
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Bersihkan .env dari konfigurasi JWT
+    let env_path = ".env";
+    if Path::new(env_path).exists() {
+        if let Ok(content) = fs::read_to_string(env_path) {
+            let filtered: Vec<String> = content
+                .lines()
+                .filter(|line| {
+                    !line.starts_with("JWT_") &&
+                    !line.contains("# --- JWT CONFIG ---")
+                })
+                .map(|s| s.to_string())
+                .collect();
+            let _ = fs::write(env_path, filtered.join("\n") + "\n");
+            println!("   📝 Diperbarui: {}", env_path);
+        }
+    }
+}
+"##.to_string()
+        }
+        "permission:remove" => {
+            r##"use std::fs;
+use std::path::Path;
+
+fn main() {
+    println!("⚙️ Membersihkan scaffolding RBAC Permission...");
+    
+    // 1. Hapus model files
+    let models = [
+        "role.rs",
+        "permission.rs",
+        "model_has_role.rs",
+        "model_has_permission.rs",
+        "role_has_permission.rs"
+    ];
+    for model in &models {
+        let path = format!("src/app/models/{}", model);
+        if Path::new(&path).exists() {
+            let _ = fs::remove_file(&path);
+            println!("   🗑️ Dihapus: {}", path);
+        }
+    }
+
+    // 2. Bersihkan src/app/models/mod.rs
+    let mod_path = "src/app/models/mod.rs";
+    if Path::new(mod_path).exists() {
+        if let Ok(content) = fs::read_to_string(mod_path) {
+            let filtered: Vec<String> = content
+                .lines()
+                .filter(|line| {
+                    !line.contains("pub mod role;") &&
+                    !line.contains("pub use role::Model as Role;") &&
+                    !line.contains("pub use role::Entity as Role;") &&
+                    !line.contains("pub mod permission;") &&
+                    !line.contains("pub use permission::Model as Permission;") &&
+                    !line.contains("pub use permission::Entity as Permission;") &&
+                    !line.contains("pub mod model_has_role;") &&
+                    !line.contains("pub use model_has_role::Model as ModelHasRole;") &&
+                    !line.contains("pub use model_has_role::Entity as ModelHasRole;") &&
+                    !line.contains("pub mod model_has_permission;") &&
+                    !line.contains("pub use model_has_permission::Model as ModelHasPermission;") &&
+                    !line.contains("pub use model_has_permission::Entity as ModelHasPermission;") &&
+                    !line.contains("pub mod role_has_permission;") &&
+                    !line.contains("pub use role_has_permission::Model as RoleHasPermission;") &&
+                    !line.contains("pub use role_has_permission::Entity as RoleHasPermission;")
+                })
+                .map(|s| s.to_string())
+                .collect();
+            let _ = fs::write(mod_path, filtered.join("\n") + "\n");
+            println!("   📝 Diperbarui: {}", mod_path);
+        }
+    }
+
+    // 3. Hapus migrations
+    let migrations_dir = "database/migrations";
+    if let Ok(entries) = fs::read_dir(migrations_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.contains("create_rbac_tables") {
+                let path = entry.path();
+                let _ = fs::remove_file(&path);
+                println!("   🗑️ Dihapus: {}", path.display());
+                
+                // Bersihkan database/migrations/mod.rs
+                let mod_name = name.strip_suffix(".rs").unwrap_or(&name);
+                let migrations_mod_path = "database/migrations/mod.rs";
+                if Path::new(migrations_mod_path).exists() {
+                    if let Ok(content) = fs::read_to_string(migrations_mod_path) {
+                        let filtered: Vec<String> = content
+                            .lines()
+                            .filter(|line| {
+                                !line.contains(&format!("pub mod {};", mod_name)) &&
+                                !line.contains(&format!("Box::new({}::Migration)", mod_name))
+                            })
+                            .map(|s| s.to_string())
+                            .collect();
+                        let _ = fs::write(migrations_mod_path, filtered.join("\n") + "\n");
+                    }
+                }
+            }
+        }
+    }
+}
+"##.to_string()
         }
         "activitylog:install" => {
-            r#"fn main() {
+            let use_local = std::path::Path::new("../rustbasic-activitylog").exists();
+            let cargo_args = if use_local {
+                "[\"run\", \"--manifest-path\", \"../rustbasic-activitylog/Cargo.toml\", \"--\", \"install\"]"
+            } else {
+                "[\"run\", \"-p\", \"rustbasic-activitylog\", \"--\", \"install\"]"
+            };
+            format!(
+                r#"fn main() {{
     println!("⚙️ Menjalankan generator scaffolding Activity Log...");
     let mut cmd = std::process::Command::new("cargo");
-    cmd.args(["run", "--bin", "rustbasic-activitylog", "--", "install"]);
-    if let Ok(status) = cmd.status() {
-        if !status.success() {
+    cmd.args({});
+    if let Ok(status) = cmd.status() {{
+        if !status.success() {{
             eprintln!("❌ Scaffolding Activity Log gagal");
-        }
-    }
-}
-"#.to_string()
+        }}
+    }}
+}}
+"#,
+                cargo_args
+            )
         }
         "permission:install" => {
-            r#"fn main() {
+            let use_local = std::path::Path::new("../rustbasic-permission").exists();
+            let cargo_args = if use_local {
+                "[\"run\", \"--manifest-path\", \"../rustbasic-permission/Cargo.toml\", \"--\", \"install\"]"
+            } else {
+                "[\"run\", \"-p\", \"rustbasic-permission\", \"--\", \"install\"]"
+            };
+            format!(
+                r#"fn main() {{
     println!("⚙️ Menjalankan generator scaffolding RBAC Permission...");
     let mut cmd = std::process::Command::new("cargo");
-    cmd.args(["run", "--bin", "rustbasic-permission", "--", "install"]);
-    if let Ok(status) = cmd.status() {
-        if !status.success() {
+    cmd.args({});
+    if let Ok(status) = cmd.status() {{
+        if !status.success() {{
             eprintln!("❌ Scaffolding RBAC Permission gagal");
-        }
-    }
-}
-"#.to_string()
+        }}
+    }}
+}}
+"#,
+                cargo_args
+            )
         }
         "native:install" => {
-            r#"fn main() {
+            let use_local = std::path::Path::new("../rustbasic-native").exists();
+            let cargo_args = if use_local {
+                "[\"run\", \"--manifest-path\", \"../rustbasic-native/Cargo.toml\", \"--\", \"install\"]"
+            } else {
+                "[\"run\", \"-p\", \"rustbasic-native\", \"--\", \"install\"]"
+            };
+            format!(
+                r#"fn main() {{
     println!("⚙️ Menjalankan generator scaffolding RustBasic Native...");
     let mut cmd = std::process::Command::new("cargo");
-    cmd.args(["run", "--manifest-path", "../rustbasic-native/Cargo.toml", "--", "install"]);
-    if let Ok(status) = cmd.status() {
-        if !status.success() {
+    cmd.args({});
+    if let Ok(status) = cmd.status() {{
+        if !status.success() {{
             eprintln!("❌ Scaffolding RustBasic Native gagal");
-        }
-    }
-}
-"#.to_string()
+        }}
+    }}
+}}
+"#,
+                cargo_args
+            )
         }
         "native:remove" => {
-            r#"fn main() {
+            let use_local = std::path::Path::new("../rustbasic-native").exists();
+            let cargo_args = if use_local {
+                "[\"run\", \"--manifest-path\", \"../rustbasic-native/Cargo.toml\", \"--\", \"uninstall\"]"
+            } else {
+                "[\"run\", \"-p\", \"rustbasic-native\", \"--\", \"uninstall\"]"
+            };
+            format!(
+                r#"fn main() {{
     println!("⚙️ Membersihkan scaffolding RustBasic Native...");
     let mut cmd = std::process::Command::new("cargo");
-    cmd.args(["run", "--manifest-path", "../rustbasic-native/Cargo.toml", "--", "uninstall"]);
-    if let Ok(status) = cmd.status() {
-        if !status.success() {
+    cmd.args({});
+    if let Ok(status) = cmd.status() {{
+        if !status.success() {{
             eprintln!("❌ Pembersihan scaffolding RustBasic Native gagal");
-        }
-    }
-}
-"#.to_string()
+        }}
+    }}
+}}
+"#,
+                cargo_args
+            )
         }
         _ => return,
     };

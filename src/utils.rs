@@ -1,6 +1,21 @@
 use rustbasic_core::colored::*;
 use std::io::{BufRead, Read, Write};
 
+/// Menampilkan prompt interaktif dan meminta user memilih angka dari min..=max
+pub fn prompt_choice(prompt: &str, min: usize, max: usize) -> usize {
+    loop {
+        print!("{}", prompt);
+        let _ = std::io::stdout().flush();
+        let mut input = String::new();
+        if std::io::stdin().read_line(&mut input).is_ok()
+            && let Ok(choice) = input.trim().parse::<usize>()
+                && choice >= min && choice <= max {
+                    return choice;
+                }
+        println!("⚠️ Pilihan tidak valid, silakan coba lagi.");
+    }
+}
+
 pub fn to_snake_case(s: &str) -> String {
     let mut snake = String::new();
     for (i, ch) in s.chars().enumerate() {
@@ -233,14 +248,12 @@ pub fn run_cargo_with_progress(mut cmd: std::process::Command) -> std::io::Resul
     let state_clone_stdout = std::sync::Arc::clone(&state);
     let stdout_thread = std::thread::spawn(move || {
         let reader = std::io::BufReader::new(child_stdout);
-        for line_result in reader.lines() {
-            if let Ok(line) = line_result {
-                let s = state_clone_stdout.lock().unwrap();
-                // Clear the progress bar, print stdout line, redraw progress bar
-                print!("\r\x1B[2K");
-                println!("{}", line);
-                draw_progress(&s);
-            }
+        for line in reader.lines().map_while(Result::ok) {
+            let s = state_clone_stdout.lock().unwrap();
+            // Clear the progress bar, print stdout line, redraw progress bar
+            print!("\r\x1B[2K");
+            println!("{}", line);
+            draw_progress(&s);
         }
     });
     
