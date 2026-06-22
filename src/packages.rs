@@ -576,48 +576,18 @@ fn main() {
             )
         }
         "native:install" => {
-            let use_local = std::path::Path::new("../rustbasic-native").exists();
-            let cargo_args = if use_local {
-                "[\"run\", \"--manifest-path\", \"../rustbasic-native/Cargo.toml\", \"--\", \"install\"]"
-            } else {
-                "[\"run\", \"-p\", \"rustbasic-native\", \"--\", \"install\"]"
-            };
-            format!(
-                r#"fn main() {{
+            r#"fn main() {
     println!("⚙️ Menjalankan generator scaffolding RustBasic Native...");
-    let mut cmd = std::process::Command::new("cargo");
-    cmd.args({});
-    if let Ok(status) = cmd.status() {{
-        if !status.success() {{
-            eprintln!("❌ Scaffolding RustBasic Native gagal");
-        }}
-    }}
-}}
-"#,
-                cargo_args
-            )
+    rustbasic_native::scaffolding::make_native_scaffolding();
+}
+"#.to_string()
         }
         "native:remove" => {
-            let use_local = std::path::Path::new("../rustbasic-native").exists();
-            let cargo_args = if use_local {
-                "[\"run\", \"--manifest-path\", \"../rustbasic-native/Cargo.toml\", \"--\", \"uninstall\"]"
-            } else {
-                "[\"run\", \"-p\", \"rustbasic-native\", \"--\", \"uninstall\"]"
-            };
-            format!(
-                r#"fn main() {{
+            r#"fn main() {
     println!("⚙️ Membersihkan scaffolding RustBasic Native...");
-    let mut cmd = std::process::Command::new("cargo");
-    cmd.args({});
-    if let Ok(status) = cmd.status() {{
-        if !status.success() {{
-            eprintln!("❌ Pembersihan scaffolding RustBasic Native gagal");
-        }}
-    }}
-}}
-"#,
-                cargo_args
-            )
+    rustbasic_native::scaffolding::remove_native_scaffolding();
+}
+"#.to_string()
         }
         _ => return,
     };

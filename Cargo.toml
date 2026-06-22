@@ -1,6 +1,6 @@
 [package]
 name = "rustbasic-cli"
-version = "0.0.32"
+version = "0.0.35"
 edition = "2024"
 description = "CLI tool for the RustBasic Framework."
 license = "MIT"
@@ -12,7 +12,7 @@ keywords = ["rustbasic", "framework", "cli", "scaffolding", "web"]
 categories = ["development-tools", "command-line-utilities", "web-programming"]
 
 [dependencies]
-rustbasic-core = { version = "0.1",  features = ["regex"] }
+rustbasic-core = { version = "0.0", features = ["regex"] }
 
 [features]
 default = ["sqlite", "mysql"]

@@ -4,6 +4,72 @@ use std::fs;
 use std::path::Path;
 use rustbasic_core::colored::*;
 
+fn setup_java_home() {
+    if std::env::var("JAVA_HOME").is_err() {
+        let mut custom_java_home: Option<String> = None;
+        if cfg!(target_os = "macos") {
+            let paths = vec![
+                "/Applications/Android Studio.app/Contents/jbr/Contents/Home",
+                "/Applications/Android Studio.app/Contents/jre/Contents/Home",
+                "/Library/Java/JavaVirtualMachines/zulu-17.jdk/Contents/Home",
+            ];
+            for path in &paths {
+                if std::path::Path::new(path).exists() {
+                    custom_java_home = Some(path.to_string());
+                    break;
+                }
+            }
+        } else if cfg!(target_os = "windows") {
+            let win_paths = [
+                "C:\\Program Files\\Android\\Android Studio\\jbr",
+                "C:\\Program Files\\Android\\Android Studio\\jre",
+            ];
+            for path in &win_paths {
+                if std::path::Path::new(path).exists() {
+                    custom_java_home = Some(path.to_string());
+                    break;
+                }
+            }
+        } else {
+            // Linux & other Unix-like OS
+            let unix_paths = [
+                "/opt/android-studio/jbr",
+                "/opt/android-studio/jre",
+                "/snap/android-studio/current/jbr",
+                "/snap/android-studio/current/jre",
+                "/usr/local/android-studio/jbr",
+                "/usr/local/android-studio/jre",
+                "/usr/lib/jvm/default-java",
+            ];
+            for path in &unix_paths {
+                if std::path::Path::new(path).exists() {
+                    custom_java_home = Some(path.to_string());
+                    break;
+                }
+            }
+        }
+        if let Some(jh) = custom_java_home {
+            unsafe {
+                std::env::set_var("JAVA_HOME", &jh);
+            }
+        }
+    }
+}
+
+fn get_cargo_package_name() -> String {
+    if let Ok(content) = fs::read_to_string("Cargo.toml") {
+        for line in content.lines() {
+            let line = line.trim();
+            if line.starts_with("name") {
+                let parts: Vec<&str> = line.split('=').collect();
+                if parts.len() >= 2 {
+                    return parts[1].trim().trim_matches('"').trim_matches('\'').to_string();
+                }
+            }
+        }
+    }
+    "rustbasic".to_string()
+}
 
 pub fn build_native_project(run_android: bool, run_desktop: bool) {
     println!("\n{}", "🚀 RustBasic Native Build Manager".magenta().bold());
@@ -41,7 +107,7 @@ pub fn build_native_project(run_android: bool, run_desktop: bool) {
         }
 
         let mut cmd = Command::new("cargo");
-        cmd.args(["build", "--bin", "rustbasic-desktop", "--release"]);
+        cmd.args(["build", "--bin", "rustbasic-desktop", "--release", "--features", "desktop"]);
         println!("{} {:?}", "🚀 Menjalankan:".blue().bold(), cmd);
         
         let status = cmd.status();
@@ -75,52 +141,14 @@ pub fn build_native_project(run_android: bool, run_desktop: bool) {
             return;
         }
 
-        // Tentukan JAVA_HOME jika belum diatur
-        let has_java_home = std::env::var("JAVA_HOME").is_ok();
-        let mut custom_java_home = None;
-        if !has_java_home {
-            // Coba deteksi Android Studio JDK di berbagai platform
-            if cfg!(target_os = "macos") {
-                let mac_studio_jdk = "/Applications/Android Studio.app/Contents/jbr/Contents/Home";
-                if Path::new(mac_studio_jdk).exists() {
-                    custom_java_home = Some(mac_studio_jdk.to_string());
-                }
-            } else if cfg!(target_os = "windows") {
-                let win_paths = [
-                    "C:\\Program Files\\Android\\Android Studio\\jbr",
-                    "C:\\Program Files\\Android\\Android Studio\\jre",
-                ];
-                for path in &win_paths {
-                    if Path::new(path).exists() {
-                        custom_java_home = Some(path.to_string());
-                        break;
-                    }
-                }
-            } else {
-                // Linux & other Unix-like OS
-                let unix_paths = [
-                    "/opt/android-studio/jbr",
-                    "/opt/android-studio/jre",
-                    "/snap/android-studio/current/jbr",
-                    "/snap/android-studio/current/jre",
-                    "/usr/local/android-studio/jbr",
-                    "/usr/local/android-studio/jre",
-                    "/usr/lib/jvm/default-java",
-                ];
-                for path in &unix_paths {
-                    if Path::new(path).exists() {
-                        custom_java_home = Some(path.to_string());
-                        break;
-                    }
-                }
-            }
-        }
+        setup_java_home();
+        let jh_val = std::env::var("JAVA_HOME").ok();
 
         // 1. Generate Keystore if not exists
         let keystore_path = Path::new("native/android/app/release.keystore");
         if !keystore_path.exists() {
             println!("🔑 Menghasilkan developer release keystore baru...");
-            let keytool_bin = if let Some(jh) = custom_java_home.as_ref() {
+            let keytool_bin = if let Some(jh) = jh_val.as_ref() {
                 let jh_bin = Path::new(jh).join("bin/keytool");
                 if jh_bin.exists() {
                     jh_bin.display().to_string()
@@ -183,7 +211,7 @@ pub fn build_native_project(run_android: bool, run_desktop: bool) {
         gradle_cmd.args(["assembleRelease", "bundleRelease"]);
         gradle_cmd.current_dir("native/android");
 
-        if let Some(jh) = custom_java_home.as_ref() {
+        if let Some(jh) = jh_val.as_ref() {
             gradle_cmd.env("JAVA_HOME", jh);
         }
 
@@ -208,8 +236,6 @@ pub fn build_native_project(run_android: bool, run_desktop: bool) {
     }
 }
 
-
-
 /// Build Docker image — auto-generate Dockerfile jika belum ada
 pub fn build_docker(custom_tag: &str) {
     // 1. Cek apakah docker tersedia
@@ -232,7 +258,11 @@ pub fn build_docker(custom_tag: &str) {
     let dockerfile_path = Path::new("Dockerfile");
     if !dockerfile_path.exists() {
         println!("📝 Membuat Dockerfile...");
-        let dockerfile_content = r#"# ============================================================
+        let is_monorepo = Path::new("../rustbasic-core").exists() || Path::new("rustbasic-core").exists();
+        let binary_name = get_cargo_package_name();
+
+        let dockerfile_content = if is_monorepo {
+            r#"# ============================================================
 # RustBasic Docker Build — Multi-stage
 # ============================================================
 
@@ -280,7 +310,54 @@ COPY --from=builder /build/rustbasic/.env.example .env
 EXPOSE 4000
 
 CMD ["./rustbasic"]
-"#;
+"#.to_string()
+        } else {
+            format!(r#"# ============================================================
+# RustBasic Docker Build — Multi-stage
+# ============================================================
+
+# Stage 1: Builder
+FROM rust:1-slim-bookworm AS builder
+
+RUN apt-get update && apt-get install -y \
+    pkg-config libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Copy proyek utama
+COPY . .
+
+# Build release binary
+RUN cargo build --release --bin {bin_name}
+
+# Stage 2: Runtime
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y \
+    ca-certificates libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy binary dari builder stage
+COPY --from=builder /build/target/release/{bin_name} .
+
+# Copy assets yang diperlukan dari builder stage
+COPY --from=builder /build/src/resources/views/ src/resources/views/
+COPY --from=builder /build/src/dist/ src/dist/
+COPY --from=builder /build/public/ public/
+COPY --from=builder /build/database/migrations/ database/migrations/
+COPY --from=builder /build/database/seeders/ database/seeders/
+COPY --from=builder /build/.env.example .env
+
+# Expose port aplikasi
+EXPOSE 4000
+
+CMD ["./{bin_name}"]
+"#, bin_name = binary_name)
+        };
+
         if let Err(e) = fs::write(dockerfile_path, dockerfile_content) {
             println!("❌ Gagal membuat Dockerfile: {}", e);
             return;
@@ -291,7 +368,7 @@ CMD ["./rustbasic"]
     // 3. Tentukan image tag
     let app_name = std::env::var("BUILD_NAME")
         .or_else(|_| std::env::var("APP_NAME"))
-        .unwrap_or_else(|_| "rustbasic".to_string())
+        .unwrap_or_else(|_| get_cargo_package_name())
         .to_lowercase();
     
     let image_tag = if custom_tag.is_empty() {
@@ -396,14 +473,16 @@ pub fn build_interactive(args: &[String]) {
             println!("  [1] Current OS (Sistem saat ini)");
             println!("  [2] macOS Intel (x86_64)");
             println!("  [3] macOS Apple Silicon (aarch64)");
-            println!("  [4] Windows (x86_64)");
-            println!("  [5] Linux (x86_64)");
-            let choice = crate::utils::prompt_choice("👉 Pilih nomor target OS (1-5): ", 1, 5);
+            println!("  [4] Windows MSVC (x86_64-pc-windows-msvc)");
+            println!("  [5] Windows GNU (x86_64-pc-windows-gnu - Rekomendasi Cross-compile dari macOS/Linux)");
+            println!("  [6] Linux (x86_64-unknown-linux-gnu)");
+            let choice = crate::utils::prompt_choice("👉 Pilih nomor target OS (1-6): ", 1, 6);
             match choice {
                 2 => target_triple = "x86_64-apple-darwin",
                 3 => target_triple = "aarch64-apple-darwin",
                 4 => target_triple = "x86_64-pc-windows-msvc",
-                5 => target_triple = "x86_64-unknown-linux-gnu",
+                5 => target_triple = "x86_64-pc-windows-gnu",
+                6 => target_triple = "x86_64-unknown-linux-gnu",
                 _ => {}
             }
         } else {
@@ -417,6 +496,7 @@ pub fn build_interactive(args: &[String]) {
                     { target_triple = "x86_64-apple-darwin"; }
                 }
                 "windows" => target_triple = "x86_64-pc-windows-msvc",
+                "windows-gnu" => target_triple = "x86_64-pc-windows-gnu",
                 "linux" => target_triple = "x86_64-unknown-linux-gnu",
                 _ => {
                     println!("⚠️ Warning: Target OS '{}' tidak dikenal, menggunakan default OS saat ini.", target_os);
@@ -435,7 +515,7 @@ pub fn build_interactive(args: &[String]) {
         }
 
         println!("\n🖥️  Memulai proses build Desktop...");
-        let mut build_args = vec!["build", "--bin", "rustbasic-desktop"];
+        let mut build_args = vec!["build", "--bin", "rustbasic-desktop", "--features", "desktop"];
         if release_mode {
             build_args.push("--release");
         }
@@ -755,7 +835,7 @@ pub fn run_native(run_android: bool, run_desktop: bool) {
     } else if run_desktop {
         println!("🚀 Memulai RustBasic Desktop Wrapper...");
         let mut cmd = Command::new("cargo");
-        cmd.args(["run", "--bin", "rustbasic-desktop"]);
+        cmd.args(["run", "--bin", "rustbasic-desktop", "--features", "desktop"]);
         let status = cmd.status();
         match status {
             Ok(s) if s.success() => {}
