@@ -678,47 +678,105 @@ pub fn list_packages() {
     println!("\n{}", "📦 RustBasic Package Manager".magenta().bold());
     println!("{}", "═══════════════════════════════════════════════════════════════════════════".magenta());
 
+    println!("{}", "💻 Package Terinstal (Installed Packages):".bold());
     if manifest.packages.is_empty() {
         println!("{}", "   Belum ada package tambahan yang terinstall.".dimmed());
         println!("   Gunakan '{}' untuk menginstall package.", "rustbasic install <nama-package>".cyan());
     } else {
         // Header tabel
+        let header_pkg = format!("{:<28}", "PACKAGE").bold();
+        let header_ver = format!("{:<10}", "VERSION").bold();
+        let header_source = format!("{:<18}", "SOURCE").bold();
+        let header_installed_at = format!("{:<22}", "INSTALLED AT").bold();
+        let header_desc = "DESCRIPTION".bold();
         println!(
-            "  {:<28} {:<10} {:<10} {:<22} {}",
-            "PACKAGE".bold(),
-            "VERSION".bold(),
-            "SOURCE".bold(),
-            "INSTALLED AT".bold(),
-            "DESCRIPTION".bold()
+            "  {}{}{}{} {}",
+            header_pkg,
+            header_ver,
+            header_source,
+            header_installed_at,
+            header_desc
         );
         println!("{}", "  ─────────────────────────────────────────────────────────────────────".dimmed());
 
         for pkg in &manifest.packages {
-            let source_display = match pkg.source.as_str() {
-                "manual" => "manual".yellow().to_string(),
-                _ => "install".green().to_string(),
+            let source_padded = match pkg.source.as_str() {
+                "manual" => format!("{:<18}", "manual").yellow(),
+                _ => format!("{:<18}", "install").green(),
             };
-            let installed_at = if pkg.installed_at == "—" {
-                "—".dimmed().to_string()
+            let installed_at_padded = if pkg.installed_at == "—" {
+                format!("{:<22}", "—").dimmed()
             } else {
-                pkg.installed_at.clone().dimmed().to_string()
+                format!("{:<22}", pkg.installed_at).dimmed()
             };
+            let name_display = format!("{:<28}", pkg.name).cyan();
+            let version_display = format!("{:<10}", pkg.version);
             println!(
-                "  {:<28} {:<10} {:<18} {:<22} {}",
-                pkg.name.cyan(),
-                pkg.version,
-                source_display,
-                installed_at,
+                "  {}{}{}{} {}",
+                name_display,
+                version_display,
+                source_padded,
+                installed_at_padded,
                 pkg.description.dimmed()
+            );
+        }
+    }
+
+    println!("\n{}", "═══════════════════════════════════════════════════════════════════════════".magenta());
+    println!("{}", "✨ Package yang Tersedia untuk Diinstal (Available Packages):".bold());
+    println!("{}", "  ─────────────────────────────────────────────────────────────────────".dimmed());
+    let header_pkg = format!("{:<28}", "PACKAGE").bold();
+    let header_ver = format!("{:<10}", "VERSION").bold();
+    let header_status = format!("{:<18}", "STATUS").bold();
+    let header_desc = "DESCRIPTION".bold();
+    println!(
+        "  {}{}{} {}",
+        header_pkg,
+        header_ver,
+        header_status,
+        header_desc
+    );
+    println!("{}", "  ─────────────────────────────────────────────────────────────────────".dimmed());
+
+    let all_packages = &[
+        "rustbasic-breeze",
+        "rustbasic-activitylog",
+        "rustbasic-jwt",
+        "rustbasic-medialibrary",
+        "rustbasic-permission",
+        "rustbasic-translatable",
+        "rustbasic-webp",
+        "rustbasic-native",
+    ];
+
+    for &name in all_packages {
+        if let Some(info) = known_packages(name) {
+            let is_installed = manifest.packages.iter().any(|p| p.name == name);
+            let status_padded = if is_installed {
+                format!("{:<18}", "Terinstal").green()
+            } else {
+                format!("{:<18}", "Tersedia").yellow()
+            };
+            
+            let name_display = format!("{:<28}", name).cyan();
+            let version_display = format!("{:<10}", info.version);
+            
+            println!(
+                "  {}{}{} {}",
+                name_display,
+                version_display,
+                status_padded,
+                info.description.dimmed()
             );
         }
     }
 
     println!("{}", "═══════════════════════════════════════════════════════════════════════════".magenta());
     println!(
-        "  {} Total: {} package\n",
+        "  {} Total Terinstal: {} | Total Tersedia: {}\n",
         "📊".bold(),
-        manifest.packages.len().to_string().cyan().bold()
+        manifest.packages.len().to_string().cyan().bold(),
+        all_packages.len().to_string().yellow().bold()
     );
 }
 

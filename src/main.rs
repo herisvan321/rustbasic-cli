@@ -584,6 +584,13 @@ fn print_help() {
 
     println!("\n{}", "Package tersedia:".bold());
     println!("  {}  {}", "rustbasic-breeze".cyan(), "→ Authentication scaffolding (login, register, reset password)".dimmed());
+    println!("  {}  {}", "rustbasic-activitylog".cyan(), "→ Activity logging package for tracking actions and HTTP requests".dimmed());
+    println!("  {}  {}", "rustbasic-jwt".cyan(), "→ JWT authentication package (tokens, claims, blacklist)".dimmed());
+    println!("  {}  {}", "rustbasic-medialibrary".cyan(), "→ Advanced media library management (upload, WebP compression, S3 integration)".dimmed());
+    println!("  {}  {}", "rustbasic-permission".cyan(), "→ Role and Permission management package (RBAC)".dimmed());
+    println!("  {}  {}", "rustbasic-translatable".cyan(), "→ Multi-language JSON translation and localization package".dimmed());
+    println!("  {}  {}", "rustbasic-webp".cyan(), "→ High-performance WebP image conversion and resizing package".dimmed());
+    println!("  {}  {}", "rustbasic-native".cyan(), "→ Native platform wrapper package for running RustBasic server inside Mobile & Desktop".dimmed());
     
     println!("\n💡 Gunakan 'rustbasic version' untuk melihat informasi versi saat ini.");
 }
