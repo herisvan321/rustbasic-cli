@@ -532,48 +532,18 @@ fn main() {
 "##.to_string()
         }
         "activitylog:install" => {
-            let use_local = std::path::Path::new("../rustbasic-activitylog").exists();
-            let cargo_args = if use_local {
-                "[\"run\", \"--manifest-path\", \"../rustbasic-activitylog/Cargo.toml\", \"--\", \"install\"]"
-            } else {
-                "[\"run\", \"-p\", \"rustbasic-activitylog\", \"--\", \"install\"]"
-            };
-            format!(
-                r#"fn main() {{
+            r#"fn main() {
     println!("⚙️ Menjalankan generator scaffolding Activity Log...");
-    let mut cmd = std::process::Command::new("cargo");
-    cmd.args({});
-    if let Ok(status) = cmd.status() {{
-        if !status.success() {{
-            eprintln!("❌ Scaffolding Activity Log gagal");
-        }}
-    }}
-}}
-"#,
-                cargo_args
-            )
+    rustbasic_activitylog::scaffolding::make_activitylog_scaffolding();
+}
+"#.to_string()
         }
         "permission:install" => {
-            let use_local = std::path::Path::new("../rustbasic-permission").exists();
-            let cargo_args = if use_local {
-                "[\"run\", \"--manifest-path\", \"../rustbasic-permission/Cargo.toml\", \"--\", \"install\"]"
-            } else {
-                "[\"run\", \"-p\", \"rustbasic-permission\", \"--\", \"install\"]"
-            };
-            format!(
-                r#"fn main() {{
+            r#"fn main() {
     println!("⚙️ Menjalankan generator scaffolding RBAC Permission...");
-    let mut cmd = std::process::Command::new("cargo");
-    cmd.args({});
-    if let Ok(status) = cmd.status() {{
-        if !status.success() {{
-            eprintln!("❌ Scaffolding RBAC Permission gagal");
-        }}
-    }}
-}}
-"#,
-                cargo_args
-            )
+    rustbasic_permission::scaffolding::make_permission_scaffolding();
+}
+"#.to_string()
         }
         "native:install" => {
             r#"fn main() {
