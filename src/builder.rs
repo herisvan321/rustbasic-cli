@@ -725,28 +725,36 @@ pub fn run_native(run_android: bool, run_desktop: bool) {
             }
         }
 
+        let adb = get_adb_bin();
         let mut devices = get_adb_devices();
         if devices.is_empty() {
             println!("📱 Perangkat Android atau emulator tidak terdeteksi aktif.");
-            let emulator_bin = format!("{}/emulator/emulator", android_home);
-            if Path::new(&emulator_bin).exists() {
-                let avd_output = Command::new(&emulator_bin).arg("-list-avds").output();
-                if let Ok(avd_out) = avd_output {
-                    let avds_str = String::from_utf8_lossy(&avd_out.stdout);
-                    if let Some(avd_name) = avds_str.lines().next() {
-                        println!("🚀 Menyalakan emulator AVD: {}...", avd_name);
-                        let _ = Command::new(&emulator_bin)
-                            .args(["-avd", avd_name])
-                            .stdout(std::process::Stdio::null())
-                            .stderr(std::process::Stdio::null())
-                            .spawn();
-                        
-                        println!("⏳ Menunggu emulator menyala dan terdeteksi adb...");
-                        let _ = Command::new("adb").arg("wait-for-device").status();
-                        println!("✅ Emulator berhasil aktif!");
-                        std::thread::sleep(std::time::Duration::from_secs(3));
-                        devices = get_adb_devices();
-                    }
+            let mut emulator_bin = format!("{}/emulator/emulator", android_home);
+            if !Path::new(&emulator_bin).exists() {
+                let fallback = format!("{}/tools/emulator", android_home);
+                if Path::new(&fallback).exists() {
+                    emulator_bin = fallback;
+                } else {
+                    emulator_bin = "emulator".to_string();
+                }
+            }
+
+            let avd_output = Command::new(&emulator_bin).arg("-list-avds").output();
+            if let Ok(avd_out) = avd_output {
+                let avds_str = String::from_utf8_lossy(&avd_out.stdout);
+                if let Some(avd_name) = avds_str.lines().next() {
+                    println!("🚀 Menyalakan emulator AVD: {}...", avd_name);
+                    let _ = Command::new(&emulator_bin)
+                        .args(["-avd", avd_name])
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .spawn();
+                    
+                    println!("⏳ Menunggu emulator menyala dan terdeteksi adb...");
+                    let _ = Command::new(&adb).arg("wait-for-device").status();
+                    println!("✅ Emulator berhasil aktif!");
+                    std::thread::sleep(std::time::Duration::from_secs(3));
+                    devices = get_adb_devices();
                 }
             }
         }
@@ -799,7 +807,7 @@ pub fn run_native(run_android: bool, run_desktop: bool) {
 
         // 6. adb install
         println!("🔨 Memasang APK ke perangkat {} ({})...", device_name, device_id);
-        let install_status = Command::new("adb")
+        let install_status = Command::new(&adb)
             .args(["-s", &device_id, "install", "-r", "native/android/app/build/outputs/apk/debug/app-debug.apk"])
             .status();
 
@@ -810,7 +818,7 @@ pub fn run_native(run_android: bool, run_desktop: bool) {
 
         // 7. adb reverse
         let vite_port = "5173"; // default
-        let reverse_status = Command::new("adb")
+        let reverse_status = Command::new(&adb)
             .args(["-s", &device_id, "reverse", &format!("tcp:{}", vite_port), &format!("tcp:{}", vite_port)])
             .status();
         if reverse_status.is_err() {
@@ -819,16 +827,16 @@ pub fn run_native(run_android: bool, run_desktop: bool) {
 
         // 8. adb shell am start
         println!("🚀 Membuka aplikasi di perangkat {}...", device_name);
-        let _ = Command::new("adb")
+        let _ = Command::new(&adb)
             .args(["-s", &device_id, "logcat", "-c"])
             .status();
         
-        let _ = Command::new("adb")
+        let _ = Command::new(&adb)
             .args(["-s", &device_id, "shell", "am", "start", "-n", "com.rustbasic.mobile/com.rustbasic.mobile.MainActivity"])
             .status();
 
         println!("📋 Menampilkan log realtime dari perangkat {} (Tekan Ctrl+C untuk keluar)...", device_name);
-        let mut logcat_cmd = Command::new("adb");
+        let mut logcat_cmd = Command::new(&adb);
         logcat_cmd.args(["-s", &device_id, "logcat", "-s", "RustBasicServer"]);
         let mut child = logcat_cmd.spawn().expect("Gagal menjalankan adb logcat");
         let _ = child.wait();
@@ -1071,8 +1079,42 @@ pub fn deploy_interactive() {
     }
 }
 
+fn get_adb_bin() -> String {
+    // 1. Cek apakah adb terdaftar di PATH dan bisa dijalankan
+    if let Ok(output) = Command::new("adb").arg("devices").output() {
+        if output.status.success() {
+            return "adb".to_string();
+        }
+    }
+
+    // 2. Jika tidak ada di PATH, cari di folder SDK default
+    let os = std::env::consts::OS;
+    let home = std::env::var("HOME").unwrap_or_default();
+    let android_home = if let Ok(val) = std::env::var("ANDROID_HOME") {
+        val
+    } else {
+        if os == "macos" {
+            format!("{}/Library/Android/sdk", home)
+        } else if os == "windows" {
+            let local_app_data = std::env::var("LOCALAPPDATA").unwrap_or_default();
+            format!("{}\\Android\\Sdk", local_app_data)
+        } else {
+            format!("{}/Android/Sdk", home)
+        }
+    };
+
+    let adb_name = if os == "windows" { "adb.exe" } else { "adb" };
+    let path = Path::new(&android_home).join("platform-tools").join(adb_name);
+    if path.exists() {
+        path.display().to_string()
+    } else {
+        "adb".to_string() // fallback terakhir jika semua gagal
+    }
+}
+
 fn get_adb_devices() -> Vec<(String, String)> {
-    let output = Command::new("adb").arg("devices").output();
+    let adb = get_adb_bin();
+    let output = Command::new(&adb).arg("devices").output();
     let mut devices = Vec::new();
     if let Ok(out) = output {
         let stdout = String::from_utf8_lossy(&out.stdout);
@@ -1084,7 +1126,7 @@ fn get_adb_devices() -> Vec<(String, String)> {
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 2 && parts[1] == "device" {
                 let device_id = parts[0].to_string();
-                let model_out = Command::new("adb")
+                let model_out = Command::new(&adb)
                     .args(["-s", &device_id, "shell", "getprop", "ro.product.model"])
                     .output();
                 let model = if let Ok(m_out) = model_out {
