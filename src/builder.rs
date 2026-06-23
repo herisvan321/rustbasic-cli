@@ -237,7 +237,7 @@ pub fn build_native_project(run_android: bool, run_desktop: bool) {
 }
 
 /// Build Docker image — auto-generate Dockerfile jika belum ada
-pub fn build_docker(custom_tag: &str) {
+pub fn build_docker(custom_tag: &str, extract_binary: bool) {
     // 1. Cek apakah docker tersedia
     let docker_check = Command::new("docker")
         .arg("version")
@@ -347,8 +347,7 @@ COPY --from=builder /build/target/release/{bin_name} .
 COPY --from=builder /build/src/resources/views/ src/resources/views/
 COPY --from=builder /build/src/dist/ src/dist/
 COPY --from=builder /build/public/ public/
-COPY --from=builder /build/database/migrations/ database/migrations/
-COPY --from=builder /build/database/seeders/ database/seeders/
+COPY --from=builder /build/database/ database/
 COPY --from=builder /build/.env.example .env
 
 # Expose port aplikasi
@@ -401,6 +400,46 @@ CMD ["./{bin_name}"]
     if status.success() {
         println!("\n✅ Docker build selesai dengan sukses!");
         println!("📦 Image: {}", image_tag);
+
+        if extract_binary {
+            println!("📦 Mengekstrak biner Linux dari image Docker...");
+            let container_name = format!("temp-extract-{}", std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs());
+            
+            // docker create
+            let create_res = Command::new("docker")
+                .args(["create", "--name", &container_name, &image_tag])
+                .status();
+
+            if create_res.is_ok() && create_res.unwrap().success() {
+                // create build-output directory
+                let _ = std::fs::create_dir_all("build-output");
+                
+                // Get cargo package name (which is the binary name inside container)
+                let binary_name = get_cargo_package_name();
+
+                // docker cp
+                let cp_status = Command::new("docker")
+                    .args(["cp", &format!("{}:/app/{}", container_name, binary_name), &format!("build-output/{}", binary_name)])
+                    .status();
+                    
+                // docker rm
+                let _ = Command::new("docker")
+                    .args(["rm", &container_name])
+                    .status();
+                    
+                if cp_status.is_ok() && cp_status.unwrap().success() {
+                    println!("✅ Biner berhasil diekstrak ke: {}", format!("build-output/{}", binary_name).cyan().bold());
+                } else {
+                    println!("❌ Gagal mengekstrak biner dari container.");
+                }
+            } else {
+                println!("❌ Gagal membuat temporary container untuk ekstraksi.");
+            }
+        }
+
         println!("\n   Jalankan container (Development/Lokal):");
         println!("   docker run -p 4000:4000 --env-file .env {}", image_tag);
         println!("\n   Jalankan container (Produksi/Server - Auto Restart):");
@@ -418,6 +457,7 @@ pub fn build_interactive(args: &[String]) {
     let mut release_mode = args.iter().any(|arg| arg == "--release" || arg == "-r");
     let mut target_type = String::new(); // apk / aab
     let mut docker_tag = String::new();
+    let extract_binary = args.iter().any(|arg| arg == "--extract" || arg == "-e");
 
     // Parse arguments
     for i in 0..args.len() {
@@ -458,7 +498,12 @@ pub fn build_interactive(args: &[String]) {
     }
 
     if build_docker_flag {
-        build_docker(&docker_tag);
+        let mut extract = extract_binary;
+        if !extract && !args.iter().any(|arg| arg == "--docker") {
+            let extract_choice = prompt_string("👉 Apakah Anda ingin mengekstrak biner Linux hasil build ke folder './build-output'? (y/n) [default: n]: ", "n");
+            extract = extract_choice.to_lowercase().starts_with('y');
+        }
+        build_docker(&docker_tag, extract);
     } else if build_desktop {
         let mut target_os = String::new();
         for i in 0..args.len() {
