@@ -263,28 +263,32 @@ pub fn build_docker(custom_tag: &str, extract_binary: bool) {
 
         let dockerfile_content = if is_monorepo {
             r#"# ============================================================
-# RustBasic Docker Build — Multi-stage
+# RustBasic Docker Build — Standalone (Cached)
 # ============================================================
 
 # Stage 1: Builder
 FROM rust:1-slim-bookworm AS builder
 
-RUN apt-get update && apt-get install -y \
-    pkg-config libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /build
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y \
+    pkg-config libssl-dev
 
 # Copy rustbasic-core (dari konteks workspace root)
-COPY rustbasic-core /build/rustbasic-core
+WORKDIR /rustbasic-core
+COPY --from=core . .
 
 # Copy proyek utama rustbasic
-COPY rustbasic /build/rustbasic
+WORKDIR /build
+COPY . .
 
-WORKDIR /build/rustbasic
-
-# Build release binary
-RUN cargo build --release --bin rustbasic
+# Build release binary using Cargo registry, git cache, and target cache
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/target \
+    cargo build --release --bin rustbasic && \
+    cp target/release/rustbasic /build/rustbasic-bin
 
 # Stage 2: Runtime
 FROM debian:bookworm-slim
@@ -296,15 +300,14 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy binary dari builder stage
-COPY --from=builder /build/rustbasic/target/release/rustbasic .
+COPY --from=builder /build/rustbasic-bin ./rustbasic
 
 # Copy assets yang diperlukan dari builder stage (lebih aman dan bersih)
-COPY --from=builder /build/rustbasic/src/resources/views/ src/resources/views/
-COPY --from=builder /build/rustbasic/src/dist/ src/dist/
-COPY --from=builder /build/rustbasic/public/ public/
-COPY --from=builder /build/rustbasic/database/migrations/ database/migrations/
-COPY --from=builder /build/rustbasic/database/seeders/ database/seeders/
-COPY --from=builder /build/rustbasic/.env.example .env
+COPY --from=builder /build/src/resources/views/ src/resources/views/
+COPY --from=builder /build/src/dist/ src/dist/
+COPY --from=builder /build/public/ public/
+COPY --from=builder /build/database/ database/
+COPY --from=builder /build/.env.example .env
 
 # Expose port aplikasi
 EXPOSE 4000
@@ -313,23 +316,28 @@ CMD ["./rustbasic"]
 "#.to_string()
         } else {
             format!(r#"# ============================================================
-# RustBasic Docker Build — Multi-stage
+# RustBasic Docker Build — Standalone (Cached)
 # ============================================================
 
 # Stage 1: Builder
 FROM rust:1-slim-bookworm AS builder
 
-RUN apt-get update && apt-get install -y \
-    pkg-config libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y \
+    pkg-config libssl-dev
 
 WORKDIR /build
 
-# Copy proyek utama
 COPY . .
 
-# Build release binary
-RUN cargo build --release --bin {bin_name}
+# Build release binary using Cargo registry, git cache, and target cache
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/target \
+    cargo build --release --bin {bin_name} && \
+    cp target/release/{bin_name} /build/{bin_name}-bin
 
 # Stage 2: Runtime
 FROM debian:bookworm-slim
@@ -341,7 +349,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy binary dari builder stage
-COPY --from=builder /build/target/release/{bin_name} .
+COPY --from=builder /build/{bin_name}-bin ./{bin_name}
 
 # Copy assets yang diperlukan dari builder stage
 COPY --from=builder /build/src/resources/views/ src/resources/views/
@@ -382,13 +390,64 @@ CMD ["./{bin_name}"]
         "core=."
     };
 
+    // Prompt Platform Target CPU Docker
+    let mut docker_platform = String::new();
+    println!("\nPilih Platform Target CPU Docker:");
+    println!("  [1] Current Host Platform (Sesuai OS komputer Anda)");
+    println!("  [2] Linux AMD64 / x86_64 (Standard VPS Intel/AMD - Umum/Rekomendasi)");
+    println!("  [3] Linux ARM64 / aarch64 (Server berbasis ARM / AWS Graviton)");
+    match crate::utils::prompt_choice("👉 Pilih (1-3): ", 1, 3) {
+        2 => docker_platform = "linux/amd64".to_string(),
+        3 => docker_platform = "linux/arm64".to_string(),
+        _ => {}
+    }
+
+    // Peringatan Arsitektur CPU Mismatch
+    let host_arch = std::env::consts::ARCH;
+    let is_mismatch = (host_arch == "aarch64" && docker_platform == "linux/amd64")
+        || (host_arch == "x86_64" && docker_platform == "linux/arm64");
+
+    if is_mismatch {
+        println!("\n⚠️  {}", "PERINGATAN: Arsitektur CPU Mismatch (Sangat Lambat)".yellow().bold());
+        println!("   Anda berada di host dengan CPU '{}' tetapi memilih target Docker '{}'.", host_arch, docker_platform);
+        println!("   Docker akan menggunakan emulasi CPU (QEMU) yang membuat proses kompilasi");
+        println!("   Rust berjalan {} (bisa memakan waktu 10-30 menit).", "10x-20x LEBIH LAMBAT".red().bold());
+        println!("   ");
+        println!("   💡 {} Kami telah mengaktifkan target caching untuk mempercepat build.", "TIPS:".cyan().bold());
+        println!("      Build pertama tetap lambat, namun build berikutnya akan sangat cepat (1-2 menit)");
+        println!("      karena target directory dan dependency cache disimpan oleh Docker.");
+        println!("   ");
+        let proceed = prompt_string("👉 Apakah Anda ingin melanjutkan proses build? (y/n) [default: y]: ", "y");
+        if !proceed.to_lowercase().starts_with('y') {
+            println!("❌ Build dibatalkan oleh pengguna.");
+            return;
+        }
+    }
+
     // 4. Build Docker image dengan named context 'core' untuk rustbasic-core
     println!("\n🐳 Memulai Docker build...");
     println!("   Image tag: {}", image_tag);
-    println!("   Running: docker build --build-context {} -t {} .", core_context, image_tag);
+
+    let mut build_args = vec![
+        "build".to_string(),
+        "--build-context".to_string(),
+        core_context.to_string(),
+    ];
+    
+    if !docker_platform.is_empty() {
+        build_args.push("--platform".to_string());
+        build_args.push(docker_platform.clone());
+        println!("   Platform: {}", docker_platform);
+    }
+    
+    build_args.push("-t".to_string());
+    build_args.push(image_tag.clone());
+    build_args.push(".".to_string());
+
+    println!("   Running: docker {}", build_args.join(" "));
 
     let mut cmd = Command::new("docker")
-        .args(["build", "--build-context", core_context, "-t", &image_tag, "."])
+        .args(&build_args)
         .stdin(std::process::Stdio::inherit())
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())
